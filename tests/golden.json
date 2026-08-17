@@ -1,0 +1,44 @@
+{
+  "easy": {
+    "reason": "goal-complete",
+    "tick": 179,
+    "total": 1065,
+    "components": {
+      "goal": 1000,
+      "objectives": 0,
+      "efficiency": 0,
+      "swiftness": 30,
+      "style": 35,
+      "penalty": 0
+    },
+    "hash": "79719ac1"
+  },
+  "medium": {
+    "reason": "goal-complete",
+    "tick": 274,
+    "total": 1446,
+    "components": {
+      "goal": 1000,
+      "objectives": 250,
+      "efficiency": 0,
+      "swiftness": 36,
+      "style": 160,
+      "penalty": 0
+    },
+    "hash": "2b6e7047"
+  },
+  "hard": {
+    "reason": "goal-complete",
+    "tick": 714,
+    "total": 2245,
+    "components": {
+      "goal": 1000,
+      "objectives": 500,
+      "efficiency": 360,
+      "swiftness": 361,
+      "style": 24,
+      "penalty": 0
+    },
+    "hash": "4e531beb"
+  }
+}
