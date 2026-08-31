@@ -15,6 +15,53 @@ export class AudioSystem {
     this.musicNodes = [];
     this.captionCb = null;
     this.intensity = 0; // adaptive music: 0 calm, 1 action, 2 celebration
+    this.samples = new Map(); // name -> AudioBuffer (loaded from sfx/, see manifest)
+  }
+
+  // Pre-recorded one-shots (sfx/*.opus, see sfx/manifest.md). Loaded after the
+  // first user gesture; until a buffer is ready the synth fallback below plays.
+  static SAMPLES = {
+    'ui-click': 'ui-click', 'ui-hover': 'ui-hover', 'ui-confirm': 'ui-confirm',
+    'ui-back': 'ui-back', 'ui-error': 'ui-error', 'ui-success': 'ui-success',
+    'ui-modal-open': 'ui-modal-open', 'ui-panel-close': 'ui-panel-close',
+    'ui-toggle': 'ui-toggle', 'ui-toast': 'ui-toast', 'ui-pause': 'ui-pause',
+    'ui-resume': 'ui-resume', 'ui-tab-switch': 'ui-tab-switch',
+    'ui-countdown-tick': 'ui-countdown-tick', 'ui-timer-warning': 'ui-timer-warning',
+    'ui-slider-drag': 'ui-slider-drag', 'ui-drag-start': 'ui-drag-start',
+    'ui-drop': 'ui-drop', 'ui-scroll-tick': 'ui-scroll-tick',
+    'undo-rewind': 'undo-rewind',
+    'tool-select': 'tool-select', 'tool-place': 'tool-place',
+    'piston-wallop': 'piston-wallop', 'boing-bounce': 'boing-bounce',
+    'plush-thud': 'plush-thud', 'dummy-launch': 'dummy-launch',
+    'dummy-land': 'dummy-land', 'streak-combo': 'streak-combo',
+    'target-hit': 'target-hit', 'star-ding': 'star-ding',
+    'hint-sparkle': 'hint-sparkle', 'round-start': 'round-start',
+    'round-win': 'round-win', 'round-lose': 'round-lose',
+    'score-tally': 'score-tally', 'new-record': 'new-record',
+  };
+
+  loadSamples() {
+    if (this._samplesLoading || !this.ctx) return;
+    this._samplesLoading = true;
+    for (const name of Object.values(AudioSystem.SAMPLES)) {
+      fetch(`./sfx/${name}.opus`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+        .then((buf) => this.ctx.decodeAudioData(buf))
+        .then((audio) => this.samples.set(name, audio))
+        .catch(() => { /* missing/undecodable file: synth fallback keeps working */ });
+    }
+  }
+
+  playSample(name, bus = 'effects', volume = 1) {
+    const buf = this.samples.get(name);
+    if (!buf || !this.started) return false;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const g = this.ctx.createGain();
+    g.gain.value = volume;
+    src.connect(g).connect(this.buses[bus] ?? this.master);
+    src.start();
+    return true;
   }
 
   // must be called from a user gesture
@@ -35,6 +82,7 @@ export class AudioSystem {
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
     this.started = true;
+    this.loadSamples();
   }
 
   setVolumes(v) {
@@ -109,8 +157,54 @@ export class AudioSystem {
   }
 
   // --- event sounds ---------------------------------------------------------------
+  // Picks the pre-recorded sample for an event (null = synth only).
+  sampleFor(ev) {
+    switch (ev.t) {
+      case 'ui-click': case 'ui-hover': case 'ui-confirm': case 'ui-back':
+      case 'ui-modal-open': case 'ui-panel-close': case 'ui-toggle':
+      case 'ui-tab-switch': case 'ui-countdown-tick': case 'ui-timer-warning':
+      case 'ui-slider-drag': case 'ui-drag-start': case 'ui-drop':
+      case 'ui-scroll-tick':
+      case 'round-start': case 'score-tally': case 'new-record':
+        return AudioSystem.SAMPLES[ev.t];
+      case 'pause': return 'ui-pause';
+      case 'resume': return 'ui-resume';
+      case 'hint': return 'hint-sparkle';
+      case 'select': return 'tool-select';
+      case 'place': return 'tool-place';
+      // piston slams; a triggered fan whooshes the dummy through the air
+      case 'trigger': return ev.tool === 'piston' ? 'piston-wallop' : ev.tool === 'fan' ? 'dummy-launch' : null;
+      // soft dummy hits; dummy (body 0) tumbling onto a static surface lands softly
+      case 'impact':
+        if (ev.mat === 0) return 'plush-thud';
+        if (ev.a === 0 && ev.b === -1) return 'dummy-land';
+        return null;
+      case 'boing': return 'boing-bounce';
+      case 'bell': return 'target-hit';
+      case 'goal': return 'star-ding';
+      case 'win-pending': return 'ui-success';
+      case 'terminal': return ev.reason === 'goal-complete' ? 'round-win' : 'round-lose';
+      case 'invalid': return 'ui-error';
+      case 'undo': return 'undo-rewind';
+      case 'tutorial-step': return 'ui-toast';
+      case 'achievement': return ev.key === 'streak-3' ? 'streak-combo' : 'ui-success';
+      case 'results': return 'score-tally';
+      default: return null;
+    }
+  }
+
   event(ev) {
     if (!this.started) return;
+    const sample = this.sampleFor(ev);
+    if (sample && this.playSample(sample, ev.bus ?? 'effects')) {
+      if (ev.t === 'place') this.caption('placing tool');
+      if (ev.t === 'trigger') this.caption('triggered!');
+      if (ev.t === 'boing') this.caption('boing!');
+      if (ev.t === 'bell') this.caption(ev.done ? 'bell rung!' : 'bell tapped');
+      if (ev.t === 'goal') this.caption('goal complete!');
+      if (ev.t === 'achievement') this.caption('achievement unlocked!');
+      return;
+    }
     const t = this.ctx.currentTime;
     const v = 1 + ((ev.variant ?? 0) - 1.5) * 0.06; // seeded variant pitch
     switch (ev.t) {
@@ -189,6 +283,69 @@ export class AudioSystem {
         break;
       case 'results':
         this.osc('triangle', 523, t, 0.2, 'voice', 0.1);
+        break;
+      // --- UI/navigation events backed by sfx samples (synth fallbacks) ----------
+      case 'ui-hover':
+        this.osc('triangle', 980, t, 0.03, 'voice', 0.04);
+        break;
+      case 'ui-confirm':
+        this.osc('triangle', 660, t, 0.06, 'voice', 0.08);
+        this.osc('triangle', 880, t + 0.06, 0.09, 'voice', 0.08);
+        break;
+      case 'ui-back':
+        this.osc('triangle', 620, t, 0.06, 'voice', 0.07, 440);
+        break;
+      case 'ui-modal-open':
+        this.noise(t, 0.12, 'voice', 0.06, 900, 1, 'highpass');
+        break;
+      case 'ui-panel-close':
+        this.noise(t, 0.08, 'voice', 0.08, 500, 1, 'lowpass');
+        break;
+      case 'ui-toggle':
+        this.osc('square', 500, t, 0.04, 'voice', 0.05);
+        break;
+      case 'ui-tab-switch':
+        this.osc('triangle', 540, t, 0.04, 'voice', 0.07);
+        this.osc('triangle', 700, t + 0.04, 0.05, 'voice', 0.07);
+        break;
+      case 'ui-countdown-tick':
+        this.osc('triangle', 840, t, 0.07, 'voice', 0.09);
+        break;
+      case 'ui-timer-warning':
+        this.osc('square', 880, t, 0.09, 'voice', 0.06);
+        this.osc('square', 880, t + 0.12, 0.09, 'voice', 0.06);
+        break;
+      case 'ui-slider-drag':
+        this.osc('square', 420, t, 0.03, 'voice', 0.04);
+        break;
+      case 'ui-scroll-tick':
+        this.osc('triangle', 1180, t, 0.025, 'voice', 0.04);
+        break;
+      case 'ui-drag-start':
+        this.noise(t, 0.06, 'voice', 0.06, 1400);
+        break;
+      case 'ui-drop':
+        this.noise(t, 0.08, 'voice', 0.08, 700);
+        break;
+      case 'pause':
+        this.osc('sine', 300, t, 0.12, 'voice', 0.09, 200);
+        break;
+      case 'resume':
+        this.osc('sine', 240 * v, t, 0.14, 'voice', 0.09, 480);
+        break;
+      case 'hint':
+        this.osc('sine', 1046, t, 0.12, 'voice', 0.08);
+        this.osc('sine', 1568, t + 0.09, 0.16, 'voice', 0.07);
+        this.caption('hint shown');
+        break;
+      case 'round-start':
+        this.noise(t, 0.15, 'effects', 0.1, 1800, 1, 'highpass');
+        this.osc('triangle', 523, t, 0.15, 'effects', 0.12);
+        this.osc('triangle', 784, t + 0.12, 0.2, 'effects', 0.12);
+        break;
+      case 'new-record':
+        [659, 784, 988, 1319].forEach((f, i) => this.osc('sine', f, t + i * 0.07, 0.3, 'voice', 0.1));
+        this.caption('new record!');
         break;
     }
   }

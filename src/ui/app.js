@@ -19,6 +19,14 @@ export class App {
     this.current = null;
     this.overlay = null;
     this.lastFocus = null;
+    // soft tick when hovering/focusing interactive elements (delegated)
+    const hover = (e) => {
+      if (e.target.closest?.('button, select, input, a[href]')) {
+        this.game.audio?.event({ t: 'ui-hover' });
+      }
+    };
+    this.screenRoot.addEventListener('pointerover', hover);
+    this.overlayRoot.addEventListener('pointerover', hover);
   }
 
   announce(text, priority) { this.game.announcer.say(text, priority); }
@@ -48,9 +56,11 @@ export class App {
     this.overlayRoot.classList.remove('hidden');
     const first = this.overlayRoot.querySelector('button');
     first?.focus();
+    this.game.audio?.event({ t: 'ui-modal-open' });
   }
 
   closeOverlay() {
+    if (this.overlay) this.game.audio?.event({ t: 'ui-panel-close' });
     this.overlayRoot.classList.add('hidden');
     this.overlayRoot.innerHTML = '';
     this.overlay = null;
@@ -391,6 +401,7 @@ export class App {
     root.addEventListener('click', (e) => {
       const b = e.target.closest('[data-board]')?.dataset.board;
       if (b) {
+        g.audio.event({ t: 'ui-tab-switch' });
         root.querySelectorAll('[role=tab]').forEach(t => t.classList.toggle('active', t.dataset.board === b));
         load(b);
       } else if (e.target.closest('[data-act]')) g.route('title');
@@ -553,6 +564,10 @@ export class App {
       const accSel = e.target.dataset.accSel;
       if (accSel) g.setAccessibility(accSel, e.target.value);
       if (e.target.hasAttribute('data-telemetry')) g.setTelemetryConsent(e.target.checked);
+      if (e.target.type === 'checkbox') g.audio.event({ t: 'ui-toggle' });
+    });
+    root.addEventListener('change', (e) => {
+      if (e.target.type === 'range') g.audio.event({ t: 'ui-slider-drag' });
     });
     root.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;

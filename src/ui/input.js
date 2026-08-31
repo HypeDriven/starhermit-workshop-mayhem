@@ -65,13 +65,14 @@ export class InputController {
   // --- tool selection ---------------------------------------------------------
   selectTool(tool) {
     if (!this.enabled || !this.state) return;
-    if (this.selectedTool === tool) { this.deselect(); return; }
+    if (this.selectedTool === tool) { this.deselect(); this.cb.sfx?.('ui-drop'); return; }
     const legal = this.session.legal;
     if (!legal?.placements.find(p => p.tool === tool)) {
       this.cb.announce?.(`${TOOLS[tool]?.name ?? tool} is out of stock`);
       return;
     }
     this.selectedTool = tool;
+    this.cb.sfx?.('select');
     this.aimEdit = null;
     this.scene.showGhost(tool);
     this.scene.levelView?.setMountHighlight(
@@ -129,6 +130,7 @@ export class InputController {
     const pt = this.toWorld(e);
     if (!pt) return;
     this.drag = { startPt: pt, startPx: { x: e.clientX, y: e.clientY }, startTime: performance.now(), pointerId: e.pointerId, aiming: false };
+    if (this.selectedTool) this.cb.sfx?.('ui-drag-start');
     e.preventDefault();
   }
 
@@ -307,7 +309,7 @@ export class InputController {
   }
 
   keyCancel() {
-    if (this.selectedTool) this.deselect();
+    if (this.selectedTool) { this.deselect(); this.cb.sfx?.('ui-drop'); }
     else this.cb.pause?.();
   }
 

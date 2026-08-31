@@ -14,6 +14,7 @@ import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyReplay } from './src/session/replay.js';
+import { compareResults } from './src/rules/scoring.js';
 import { dailyLevel, dailySeed, DAILY_RULESET, EXCLUDED_DAYS } from './src/content/daily.js';
 import { journeyById } from './src/content/stages.js';
 import { ACHIEVEMENTS } from './src/content/achievements.js';
@@ -58,13 +59,20 @@ export function validateScoreClaim(claim, level) {
     const v = verifyReplay(claim.envelope, level);
     if (!v.valid) return { accepted: false, reason: `replay:${v.reason}` };
     if (v.score.total !== claim.score) return { accepted: false, reason: 'replay-score-mismatch' };
-    return { accepted: true, validated: 'replay', score: v.score.total };
+    // the replay is authoritative for the tie-break fields too (spec §2/§5):
+    // never trust the client-supplied ticks/completion/invalid counts
+    return { accepted: true, validated: 'replay', score: v.score.total, tie: v.score.tie };
   }
-  return { accepted: true, validated: 'casual', score: claim.score };
+  const tie = {
+    complete: (claim.components?.goal ?? 0) > 0 ? 1 : 0,
+    invalid: Math.max(0, Math.round(-(claim.components?.penalty ?? 0) / 25)),
+    ticks: claim.ticks,
+  };
+  return { accepted: true, validated: 'casual', score: claim.score, tie };
 }
 
 export function levelForBoard(entry) {
-  if (entry.levelId?.startsWith('d')) {
+  if (entry?.levelId?.startsWith('d')) {
     const day = parseInt(entry.levelId.slice(1), 10);
     if (Number.isInteger(day)) return dailyLevel(day);
   }
@@ -86,6 +94,7 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.opus': 'audio/ogg',
 };
 
 const DATA_DIR = join(ROOT, '.local-data');
@@ -105,21 +114,29 @@ async function handleApi(req, res, url, body) {
     return json(200, { now: Date.now() });
   }
   if (url.pathname === '/api/v1/leaderboard/submit' && req.method === 'POST') {
+    if (!body || typeof body !== 'object') return json(400, { error: 'malformed-body' });
     const level = levelForBoard(body);
     if (!level) return json(400, { error: 'unknown-level' });
     const verdict = validateScoreClaim(body, level);
     if (!verdict.accepted) return json(422, { error: verdict.reason });
     const boards = await readJson(BOARDS_FILE, {});
     const rows = boards[body.board] ?? [];
-    rows.push({
-      name: body.name ?? 'Local Inventor', score: verdict.score, ticks: body.ticks,
+    const row = {
+      name: body.name ?? 'Local Inventor', score: verdict.score, ticks: verdict.tie.ticks,
+      tie: verdict.tie, sessionId: String(body.sessionId ?? ''),
       levelId: body.levelId, validated: verdict.validated, when: Date.now(),
-    });
-    rows.sort((a, b) => b.score - a.score || a.ticks - b.ticks);
+    };
+    rows.push(row);
+    // spec §2 ordering: completion, score, fewer invalids, lower time, session id
+    rows.sort((a, b) => compareResults(
+      { total: a.score, tie: a.tie ?? { complete: 0, invalid: 0, ticks: a.ticks } },
+      { total: b.score, tie: b.tie ?? { complete: 0, invalid: 0, ticks: b.ticks } },
+      a.sessionId ?? '', b.sessionId ?? '',
+    ));
     boards[body.board] = rows.slice(0, 100);
     await mkdir(DATA_DIR, { recursive: true });
     await writeFile(BOARDS_FILE, JSON.stringify(boards, null, 1));
-    return json(200, { ok: true, validated: verdict.validated, rank: rows.findIndex(r => r.when === rows.at(-1)?.when) + 1 });
+    return json(200, { ok: true, validated: verdict.validated, rank: rows.indexOf(row) + 1 });
   }
   if (url.pathname.startsWith('/api/v1/leaderboard/') && req.method === 'GET') {
     const board = decodeURIComponent(url.pathname.slice('/api/v1/leaderboard/'.length));
@@ -127,6 +144,7 @@ async function handleApi(req, res, url, body) {
     return json(200, { rows: boards[board] ?? [] });
   }
   if (url.pathname.startsWith('/api/v1/save/') && req.method === 'PUT') {
+    if (!body || typeof body !== 'object') return json(400, { error: 'malformed-body' });
     const key = url.pathname.slice('/api/v1/save/'.length).replace(/[^\w-]/g, '');
     await mkdir(SAVES_DIR, { recursive: true });
     await writeFile(join(SAVES_DIR, `${key}.json`), JSON.stringify(body.doc));
@@ -161,7 +179,11 @@ export function startServer(port = 8080) {
           res.writeHead(413).end('too large');
           return;
         }
-        try { body = JSON.parse(raw); } catch { body = null; }
+        try { body = JSON.parse(raw); } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'malformed-json' }));
+          return;
+        }
       }
       return handleApi(req, res, url, body);
     }
@@ -169,7 +191,8 @@ export function startServer(port = 8080) {
     let path = normalize(decodeURIComponent(url.pathname));
     if (path === '/' || path === '\\') path = '/index.html';
     const file = join(ROOT, path);
-    if (!file.startsWith(ROOT) || file.includes('/.')) {
+    // no traversal, no hidden files, no design documents (spec §6 distribution)
+    if (!file.startsWith(ROOT) || file.includes('/.') || extname(file) === '.md') {
       res.writeHead(403).end('forbidden');
       return;
     }

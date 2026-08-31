@@ -1,0 +1,12 @@
+{
+  "name": "workshop-mayhem",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A physics toy: whimsical tools, one resilient training dummy, and a playful inventor's workshop.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/run.mjs",
+    "validate": "node tools/validate-content.mjs"
+  }
+}

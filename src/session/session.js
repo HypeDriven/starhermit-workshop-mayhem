@@ -271,6 +271,7 @@ export class SessionController {
       }
       const best = prog.bestScores[r.levelId];
       if (!best || r.score.total > best.total) {
+        if (best && completed) r.newRecord = true;
         prog.bestScores[r.levelId] = { total: r.score.total, components: r.score.components, ticks: r.ticks };
       }
       if (completed) prog.xp += 50 + r.stars * 25 + Math.floor(r.score.total / 100);
@@ -308,6 +309,7 @@ export class SessionController {
         ruleset: RULES_VERSION,
         contentVersion: this.level.version,
         seed: this.state.seed,
+        sessionId: this.sessionId,
         assists: { undo: false, timingAssist: false },
         durationMs: r.elapsedMs,
         envelope: this.envelope,

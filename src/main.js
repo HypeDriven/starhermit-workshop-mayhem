@@ -86,6 +86,7 @@ class GameApp {
         restart: () => this.session.restart(),
         skip: () => this.doSkip(),
         announce: (t) => this.announcer.say(t),
+        sfx: (t) => this.audio.event({ t }),
         trayChanged: () => {},
         tutorialUi: (kind, data) => this.session.tutorialUi(kind, data),
       },
@@ -169,7 +170,7 @@ class GameApp {
 
   // --- routing ------------------------------------------------------------------
   route(name, params) {
-    this.audio.event({ t: 'ui-click' });
+    this.audio.event({ t: name === 'title' ? 'ui-back' : 'ui-click' });
     // leaving an active round for menus: abandon it quietly (no overlay)
     if (this.state === 'active') {
       this.suppressNextResults = true;
@@ -277,7 +278,8 @@ class GameApp {
     this.hud.buildLevel(level, mode);
     this.input.setEnabled(false);
     this.input.deselect?.();
-    this.audio.event({ t: 'results' });
+    this._timerWarned = false;
+    this.audio.event({ t: 'round-start' });
     this.audio.startMusic(themeById(level.theme).music);
     this.audio.startAmbience(themeById(level.theme).ambience);
     this.audio.setIntensity(1);
@@ -301,7 +303,7 @@ class GameApp {
         return;
       }
       this.hud.countdown(n || 'Go!');
-      this.audio.event({ t: 'ui-click' });
+      this.audio.event({ t: 'ui-countdown-tick' });
       this.countdownTimer = setTimeout(tick, 700);
     };
     this.countdownTimer = setTimeout(tick, 700);
@@ -312,6 +314,7 @@ class GameApp {
     this.state = 'paused';
     this.session.setPaused(true);
     this.app.showOverlay('pause');
+    this.audio.event({ t: 'pause' });
     this.announcer.say('Paused');
   }
 
@@ -320,6 +323,7 @@ class GameApp {
     this.app.closeOverlay();
     this.session.setPaused(false);
     this.state = 'active';
+    this.audio.event({ t: 'resume' });
     this.announcer.say('Resumed');
     // "while you were away" summary
     const awayEl = document.getElementById('pause-away');
@@ -371,6 +375,7 @@ class GameApp {
       this.announcer.say('No more hints — improvise!');
       return;
     }
+    this.audio.event({ t: 'hint' });
     this.announcer.say(hint.kind === 'place'
       ? `Hint: place a ${hint.tool} near (${hint.x.toFixed(1)}, ${hint.y.toFixed(1)})`
       : `Hint: trigger the ${hint.type ?? 'tool'}`);
@@ -418,7 +423,11 @@ class GameApp {
     this.achievementsDoc = loadLocal('achievements') ?? this.achievementsDoc;
     for (const a of results.newAchievements ?? []) {
       this.announcer.say(`Achievement unlocked: ${a.name}`, 'assertive');
-      this.audio.event({ t: 'achievement' });
+      this.audio.event({ t: 'achievement', key: a.key });
+    }
+    if (results.newRecord) {
+      this.announcer.say('New personal record!', 'assertive');
+      this.audio.event({ t: 'new-record' });
     }
     if (this.platform.hosted) this.platform.cloudSave('progression', saveLocal('progression', this.progression));
     this.announcer.say(
@@ -565,6 +574,15 @@ class GameApp {
       if (this.session.state) {
         this.hud.update(this.session, this.input);
         this.mirror.update(this.session.summary);
+        // low-time warning (challenge / time-limited rounds), once per round
+        const s = this.session.state;
+        if (this.state === 'active' && !this._timerWarned && !this.session.finished) {
+          const remaining = s.options.maxTicks - s.tick;
+          if (remaining > 0 && remaining <= 10 * 120) {
+            this._timerWarned = true;
+            this.audio.event({ t: 'ui-timer-warning' });
+          }
+        }
       }
     };
     requestAnimationFrame(loop);
