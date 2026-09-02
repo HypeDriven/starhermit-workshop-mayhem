@@ -378,6 +378,9 @@ input[type="range"] { accent-color: var(--accent); min-height: 32px; }
   .tool-btn { min-width: 56px; }
   .title-chips { grid-template-columns: 1fr; }
   .panel { padding: 12px; }
+  .panel h1 { font-size: 1.3rem; margin: 0.1em 0 0.4em; }
+  .mode-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+  .mode-card { padding: 12px; gap: 4px; }
   .status-card { gap: 8px; padding: 6px 8px; }
 }
 
