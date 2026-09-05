@@ -9,11 +9,11 @@ modules — none is a model claim taken on trust.
 
 | Check | Result |
 | --- | --- |
-| `npm test` | not present at QA time — `package.json` added 2026-08-26; suite passes (32/32) |
+| `npm test` | 32 passed, 0 failed (re-verified 2026-09-05) |
 | `node tests/run.mjs` (the suite the README documents) | 32 passed, 0 failed |
 | `node tools/validate-content.mjs` | 98 levels checked, 0 failed |
 | `node --check` on all modules (`src/**/*.js`, `server.js`, `tests/*.mjs`, `tools/*.mjs`) | clean, no failures |
-| `tests/e2e.mjs` | not present |
+| `tests/e2e.mjs` (`npm run test:e2e`) | E2E PASS — desktop + mobile, no page errors (re-verified 2026-09-05) |
 | Headless Chrome (written for this pass, ports 39704-39707) | PASS — boot, title → Journey → stage j01, HUD, accessible board mirror, keyboard-only play to a terminal phase, three viewport changes; zero console errors, zero uncaught page errors |
 
 `npm test` fails with `ENOENT: … package.json`. The README documents `node tests/run.mjs` instead,
