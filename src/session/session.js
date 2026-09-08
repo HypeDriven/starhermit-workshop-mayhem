@@ -276,7 +276,13 @@ export class SessionController {
       }
       if (completed) prog.xp += 50 + r.stars * 25 + Math.floor(r.score.total / 100);
       else prog.xp += 10;
-      prog.journey.furthest = nextJourneyId(r.levelId) || prog.journey.furthest;
+      // furthest only ever moves forward, and only on a real completion
+      if (completed) {
+        const next = nextJourneyId(r.levelId);
+        if (next && journeyRank(next) > journeyRank(prog.journey.furthest)) {
+          prog.journey.furthest = next;
+        }
+      }
     }
     // achievements (idempotent)
     const achDoc = loadLocal('achievements') || emptyAchievementDoc();
@@ -328,6 +334,11 @@ export class SessionController {
   get dummyCenter() {
     return this.state ? dummyCenter(this.state) : { x: 0, y: 0 };
   }
+}
+
+function journeyRank(id) {
+  const m = /^j(\d+)$/.exec(id || '');
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 function nextJourneyId(id) {

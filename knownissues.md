@@ -19,6 +19,45 @@ modules — none is a model claim taken on trust.
 `npm test` fails with `ENOENT: … package.json`. The README documents `node tests/run.mjs` instead,
 and that is what was run. Worth noting as a packaging gap rather than a game defect.
 
+## Review pass 2026-09-07 (Claude Opus 5) — all fixed in this pass
+
+Reproduced in headless Chrome against the real UI (a throwaway playwright smoke script) and, for
+the server items, with live requests. `npm test` (now 35 suites), `node tools/validate-content.mjs`
+and `npm run test:e2e` all pass after the fixes.
+
+1. **Stale screen handlers hijacked every later screen** (`src/ui/app.js`). Each screen attaches a
+   delegated click listener to the shared `#screen-root`; `show()` only cleared `innerHTML`, so the
+   listeners accumulated. Practice was unusable — clicking **Start practicing** fired the title
+   screen's handler first (`route('start')` → unknown → title), which wiped the DOM and then threw
+   `TypeError: Cannot read properties of null (reading 'value')` in the practice handler. Same class
+   of failure on title after visiting Journey. Fixed by replacing the root node on every
+   screen/overlay transition (`freshRoot`).
+2. **A paused round still accepted play input** (`src/main.js`). `pauseGame()` never disabled the
+   input controller, so tool-slot keys, Enter-to-place and R-restart all worked through the pause
+   dialog. Input is now disabled on pause and re-enabled on resume, and Escape closes the dialog
+   (play input is locked, so the old Escape path could not fire).
+3. **Settings/Help opened from pause stayed on screen behind the pause dialog** (`src/main.js`), and
+   the play HUD showed through every menu. `route()` now hides the HUD for menu screens and the
+   `pause-resume` route restores the playfield.
+4. **Retrying a practice round started the daily challenge** (`src/main.js`). `retryStage()` resolved
+   the level by id; practice ids (`j03-practice-easy`) resolve to nothing and fell through to
+   `this.dailyLevel`. The last round's level object is now replayed directly.
+5. **`journey.furthest` moved backwards and advanced on failure** (`src/session/session.js`). It was
+   assigned `nextJourneyId(levelId)` unconditionally, so replaying j05 after reaching j20 reset the
+   title-screen marker. Now only advances on a completion and never regresses.
+6. **`POST /api/v1/telemetry` with a JSON `null` body killed the server** (`server.js`) — the same
+   unhandled-rejection class as defect 1 below (`body.events` on `null`). Fixed, plus `handleApi` is
+   now wrapped so any handler throw becomes a 500 instead of a process exit, the 1 MB limit stops
+   buffering as it is exceeded rather than after, and empty save keys 400.
+7. **Smaller fixes:** the modes screen claimed "48 authored stages" (there are 40 — now derived from
+   `JOURNEY.length`); the local casual board reported the session's best rank instead of the row just
+   submitted (`src/platform/client.js`); an abandoned key-rebind capture kept a global capturing
+   `keydown` listener alive (Escape now cancels, as does a click elsewhere); leaderboard tabs expose
+   `aria-selected` and ignore out-of-order responses; the HUD rewrote the Trigger button's contents
+   every frame.
+
+New regression coverage: `tests/server.test.mjs` (hostile bodies, 413, `.md` 403, claim validation).
+
 ## Confirmed defects
 
 ### 1. A single malformed request body kills the whole server process — FIXED 2026-08-26

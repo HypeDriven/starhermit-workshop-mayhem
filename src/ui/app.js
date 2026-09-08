@@ -20,13 +20,26 @@ export class App {
     this.overlay = null;
     this.lastFocus = null;
     // soft tick when hovering/focusing interactive elements (delegated)
-    const hover = (e) => {
+    this.hover = (e) => {
       if (e.target.closest?.('button, select, input, a[href]')) {
         this.game.audio?.event({ t: 'ui-hover' });
       }
     };
-    this.screenRoot.addEventListener('pointerover', hover);
-    this.overlayRoot.addEventListener('pointerover', hover);
+    this.screenRoot.addEventListener('pointerover', this.hover);
+    this.overlayRoot.addEventListener('pointerover', this.hover);
+  }
+
+  // Each screen/overlay delegates clicks by attaching a listener to the shared
+  // root. Clearing innerHTML does not remove those listeners, so the root node
+  // itself is replaced on every transition — otherwise a previous screen's
+  // handler still fires for the current screen's buttons.
+  freshRoot(which) {
+    const old = this[which];
+    const fresh = old.cloneNode(false);
+    old.replaceWith(fresh);
+    fresh.addEventListener('pointerover', this.hover);
+    this[which] = fresh;
+    return fresh;
   }
 
   announce(text, priority) { this.game.announcer.say(text, priority); }
@@ -36,10 +49,11 @@ export class App {
     this.overlayRoot.classList.add('hidden');
     this.overlay = null;
     const fn = this[`screen_${name}`];
-    this.screenRoot.innerHTML = '';
-    this.screenRoot.className = `screen-root screen-${name}`;
-    fn.call(this, this.screenRoot, params);
-    this.screenRoot.classList.remove('hidden');
+    const root = this.freshRoot('screenRoot');
+    root.innerHTML = '';
+    root.className = `screen-root screen-${name}`;
+    fn.call(this, root, params);
+    root.classList.remove('hidden');
     const h = this.screenRoot.querySelector('h1, h2, [autofocus], button');
     (this.screenRoot.querySelector('[autofocus]') || h)?.focus?.();
     const heading = this.screenRoot.querySelector('h1, h2');
@@ -50,10 +64,11 @@ export class App {
     this.lastFocus = document.activeElement;
     this.overlay = name;
     const fn = this[`overlay_${name}`];
-    this.overlayRoot.innerHTML = '';
-    this.overlayRoot.className = `overlay-root overlay-${name}`;
-    fn.call(this, this.overlayRoot, params);
-    this.overlayRoot.classList.remove('hidden');
+    const root = this.freshRoot('overlayRoot');
+    root.innerHTML = '';
+    root.className = `overlay-root overlay-${name}`;
+    fn.call(this, root, params);
+    root.classList.remove('hidden');
     const first = this.overlayRoot.querySelector('button');
     first?.focus();
     this.game.audio?.event({ t: 'ui-modal-open' });
@@ -166,7 +181,7 @@ export class App {
 
   screen_modes(root) {
     const cards = [
-      ['journey', '🗺️', 'Journey', '48 authored stages across six chapters. Earn stars, unlock mastery stages.'],
+      ['journey', '🗺️', 'Journey', `${JOURNEY.length} authored stages across six chapters. Earn stars, unlock mastery stages.`],
       ['daily', '📅', 'Daily Challenge', 'One shared seed for everyone today. Compare scores on the daily board.'],
       ['learn', '🎓', 'Learn', 'Five hands-on lessons. One rule at a time — you do the doing.'],
       ['practice', '🧪', 'Practice', 'Any stage, your rules: undo, restarts, no pressure, unranked.'],
@@ -367,18 +382,21 @@ export class App {
       <div class="panel wide">
         <h1>Leaderboards</h1>
         <div class="tabs" role="tablist">
-          <button role="tab" data-board="global" class="${boardId === 'global' ? 'active' : ''}">Global</button>
-          <button role="tab" data-board="friends" class="${boardId === 'friends' ? 'active' : ''}">Friends</button>
-          <button role="tab" data-board="daily-${g.platform.utcDay()}" class="${boardId.startsWith('daily') ? 'active' : ''}">Today</button>
+          <button role="tab" data-board="global" aria-selected="${boardId === 'global'}" class="${boardId === 'global' ? 'active' : ''}">Global</button>
+          <button role="tab" data-board="friends" aria-selected="${boardId === 'friends'}" class="${boardId === 'friends' ? 'active' : ''}">Friends</button>
+          <button role="tab" data-board="daily-${g.platform.utcDay()}" aria-selected="${boardId.startsWith('daily')}" class="${boardId.startsWith('daily') ? 'active' : ''}">Today</button>
         </div>
         <div id="board-body" aria-live="polite"><p class="muted">Loading…</p></div>
         <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
       </div>`;
+    let loadToken = 0;
     const load = async (b) => {
       const body = $('#board-body', root);
+      const token = ++loadToken;
       body.innerHTML = '<p class="muted">Loading…</p>';
       const actual = b === 'friends' ? 'global' : b;
       const r = await g.platform.fetchBoard(actual, { friends: b === 'friends' });
+      if (token !== loadToken) return;   // a newer tab click already won
       if (!r.rows.length) {
         body.innerHTML = `<p class="muted">No scores yet${r.casual ? ' on this device' : ''}. Be the first!</p>`;
         return;
@@ -402,7 +420,11 @@ export class App {
       const b = e.target.closest('[data-board]')?.dataset.board;
       if (b) {
         g.audio.event({ t: 'ui-tab-switch' });
-        root.querySelectorAll('[role=tab]').forEach(t => t.classList.toggle('active', t.dataset.board === b));
+        root.querySelectorAll('[role=tab]').forEach(t => {
+          const on = t.dataset.board === b;
+          t.classList.toggle('active', on);
+          t.setAttribute('aria-selected', String(on));
+        });
         load(b);
       } else if (e.target.closest('[data-act]')) g.route('title');
     });
@@ -589,15 +611,25 @@ export class App {
   }
 
   captureRebind(action, btn) {
+    const list = btn.parentElement.parentElement;
+    if (this.cancelRebind) this.cancelRebind();   // only one capture at a time
     btn.textContent = 'press a key…';
     btn.classList.add('listening');
+    const stop = () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('pointerdown', cancel, true);
+      this.cancelRebind = null;
+    };
+    const cancel = () => { stop(); this.renderBindings(list); };
     const handler = (e) => {
       e.preventDefault();
-      this.game.rebind(action, e.code);
-      window.removeEventListener('keydown', handler, true);
-      this.renderBindings(btn.parentElement.parentElement);
+      stop();
+      if (e.code !== 'Escape') this.game.rebind(action, e.code);  // Escape cancels
+      this.renderBindings(list);
     };
+    this.cancelRebind = cancel;
     window.addEventListener('keydown', handler, true);
+    window.addEventListener('pointerdown', cancel, true);
   }
 
   // ============================ OVERLAYS =====================================

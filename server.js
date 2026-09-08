@@ -146,18 +146,20 @@ async function handleApi(req, res, url, body) {
   if (url.pathname.startsWith('/api/v1/save/') && req.method === 'PUT') {
     if (!body || typeof body !== 'object') return json(400, { error: 'malformed-body' });
     const key = url.pathname.slice('/api/v1/save/'.length).replace(/[^\w-]/g, '');
+    if (!key) return json(400, { error: 'bad-key' });
     await mkdir(SAVES_DIR, { recursive: true });
     await writeFile(join(SAVES_DIR, `${key}.json`), JSON.stringify(body.doc));
     return json(200, { ok: true });
   }
   if (url.pathname.startsWith('/api/v1/save/') && req.method === 'GET') {
     const key = url.pathname.slice('/api/v1/save/'.length).replace(/[^\w-]/g, '');
+    if (!key) return json(400, { error: 'bad-key' });
     const doc = await readJson(join(SAVES_DIR, `${key}.json`), null);
     if (!doc) return json(404, { error: 'not-found' });
     return json(200, { doc });
   }
   if (url.pathname === '/api/v1/telemetry' && req.method === 'POST') {
-    return json(200, { ok: true, received: body.events?.length ?? 0 });
+    return json(200, { ok: true, received: Array.isArray(body?.events) ? body.events.length : 0 });
   }
   if (url.pathname === '/api/v1/activity/start' || url.pathname === '/api/v1/activity/end'
     || url.pathname === '/api/v1/presence') {
@@ -172,23 +174,39 @@ export function startServer(port = 8080) {
     if (url.pathname.startsWith('/api/')) {
       let body = null;
       if (req.method === 'POST' || req.method === 'PUT') {
-        const chunks = [];
-        for await (const c of req) chunks.push(c);
-        const raw = Buffer.concat(chunks).toString('utf8');
-        if (raw.length > 1_000_000) {
-          res.writeHead(413).end('too large');
-          return;
-        }
+        const raw = await new Promise(resolve => {
+          const chunks = [];
+          let size = 0, oversized = false;
+          req.on('data', c => {
+            if (oversized) return;
+            size += c.length;
+            if (size > 1_000_000) { oversized = true; resolve(null); return; }
+            chunks.push(c);
+          });
+          req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+          req.on('error', () => resolve(null));
+        });
+        if (raw === null) { res.writeHead(413).end('too large'); return; }
         try { body = JSON.parse(raw); } catch {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'malformed-json' }));
           return;
         }
       }
-      return handleApi(req, res, url, body);
+      // one bad request must never take the process down (spec §6 recoverable errors)
+      try {
+        return await handleApi(req, res, url, body);
+      } catch (err) {
+        console.error('api error', err);
+        if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'server-error' }));
+        return;
+      }
     }
     // static files (no traversal, no hidden files)
-    let path = normalize(decodeURIComponent(url.pathname));
+    let path;
+    try { path = normalize(decodeURIComponent(url.pathname)); }
+    catch { res.writeHead(400).end('bad path'); return; }
     if (path === '/' || path === '\\') path = '/index.html';
     const file = join(ROOT, path);
     // no traversal, no hidden files, no design documents (spec §6 distribution)
@@ -210,7 +228,8 @@ export function startServer(port = 8080) {
     }
   });
   server.listen(port, () => {
-    console.log(`Workshop Mayhem dev server: http://localhost:${port}`);
+    // report the port actually bound (port 0 asks the OS to pick one)
+    console.log(`Workshop Mayhem dev server: http://localhost:${server.address().port}`);
   });
   return server;
 }

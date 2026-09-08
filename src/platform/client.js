@@ -116,15 +116,18 @@ export class Platform {
     const key = `workshop-mayhem:board:${entry.board}`;
     let rows = [];
     try { rows = JSON.parse(localStorage.getItem(key) || '[]'); } catch { /* */ }
-    rows.push({
+    const row = {
       name: this.profile?.name ?? 'You',
       score: entry.score, ticks: entry.ticks, levelId: entry.levelId,
       when: Date.now(), sessionId: this.sessionRand, casual: true,
-    });
+    };
+    rows.push(row);
     rows.sort((a, b) => b.score - a.score || a.ticks - b.ticks);
     rows = rows.slice(0, 50);
     try { localStorage.setItem(key, JSON.stringify(rows)); } catch { /* */ }
-    return { ok: true, casual: true, rank: rows.findIndex(r => r.sessionId === this.sessionRand) + 1 };
+    // rank of *this* row — several rows can share this session id
+    const idx = rows.indexOf(row);
+    return { ok: true, casual: true, rank: idx < 0 ? 0 : idx + 1 };
   }
 
   async fetchBoard(board, { friends = false } = {}) {

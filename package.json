@@ -9,5 +9,9 @@
     "test": "node tests/run.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "validate": "node tools/validate-content.mjs"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }

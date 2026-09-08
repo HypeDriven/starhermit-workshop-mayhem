@@ -159,7 +159,7 @@ class GameApp {
           const chosen = pick === 'local' ? local : r.doc;
           this.progression = chosen.data ?? chosen;
           saveLocal('progression', this.progression);
-          if (this.current === 'journey') this.route('journey');
+          if (this.app.current === 'journey') this.route('journey');
         },
       });
     } else if (res.winner === 'remote') {
@@ -180,6 +180,7 @@ class GameApp {
       clearTimeout(this.resultsTimer);
       if (this.state === 'results') this.state = 'menu';
       this.app.closeOverlay();
+      this.hud.root.classList.add('hidden');  // menus never sit on top of the play HUD
     }
     const map = {
       title: () => this.toTitle(),
@@ -196,7 +197,14 @@ class GameApp {
       help: () => this.app.show('help'),
       settings: () => this.app.show('settings'),
       profile: () => this.app.show('profile'),
-      'pause-resume': () => { this.returnTo = null; this.app.showOverlay('pause'); },
+      // returning to the pause dialog from Settings/Help: put the playfield
+      // back on screen first, otherwise the menu stays visible behind it
+      'pause-resume': () => {
+        this.returnTo = null;
+        this.app.screenRoot.classList.add('hidden');
+        this.hud.root.classList.remove('hidden');
+        this.app.showOverlay('pause');
+      },
     };
     (map[name] ?? map.title)();
   }
@@ -237,6 +245,10 @@ class GameApp {
   }
 
   retryStage() {
+    // replay the exact level object that was played — practice variants and
+    // the daily are not resolvable by id through journeyById()
+    const last = this.lastRound;
+    if (last) return this.beginRound(last.level, { mode: last.mode, allowUndo: last.allowUndo });
     const f = this.session.finished;
     if (!f) return;
     const level = journeyById(f.levelId) || tutorialById(f.levelId) || this.dailyLevel;
@@ -266,6 +278,7 @@ class GameApp {
   }
 
   beginRound(level, { mode, allowUndo }) {
+    this.lastRound = { level, mode, allowUndo };
     clearTimeout(this.resultsTimer);
     clearTimeout(this.countdownTimer);
     this.state = 'preparing';
@@ -313,6 +326,7 @@ class GameApp {
     if (this.state !== 'active') return;
     this.state = 'paused';
     this.session.setPaused(true);
+    this.input.setEnabled(false);   // a paused round must not accept play commands
     this.app.showOverlay('pause');
     this.audio.event({ t: 'pause' });
     this.announcer.say('Paused');
@@ -323,6 +337,7 @@ class GameApp {
     this.app.closeOverlay();
     this.session.setPaused(false);
     this.state = 'active';
+    this.input.setEnabled(true);
     this.audio.event({ t: 'resume' });
     this.announcer.say('Resumed');
     // "while you were away" summary
@@ -529,6 +544,13 @@ class GameApp {
     };
     window.addEventListener('pointerdown', unlock, { once: true });
     window.addEventListener('keydown', unlock, { once: true });
+
+    // Escape closes the pause dialog even though play input is locked while paused
+    window.addEventListener('keydown', (e) => {
+      if (e.code !== 'Escape' || this.app.overlay !== 'pause') return;
+      e.preventDefault();
+      this.resumeGame();
+    });
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {

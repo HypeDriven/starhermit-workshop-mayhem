@@ -49,6 +49,7 @@ export class Hud {
     this.chips = new Map();
     this.lastScore = -1;
     this.lastTime = -1;
+    this.lastArmed = -1;
   }
 
   buildLevel(level, mode) {
@@ -66,6 +67,9 @@ export class Hud {
     this.$('#tutorial-card').classList.toggle('hidden', !level.tutorial);
     this.chips.forEach(c => c.remove());
     this.chips.clear();
+    this.lastScore = -1;
+    this.lastTime = -1;
+    this.lastArmed = -1;
   }
 
   buildTray(level) {
@@ -127,9 +131,14 @@ export class Hud {
     // context actions
     const legal = session.legal;
     this.$('#btn-trigger').classList.toggle('hidden', !(legal?.triggers.length > 0));
-    this.$('#btn-trigger').textContent = legal?.triggers.length > 1
-      ? `⚡ Trigger (${legal.triggers.length} armed) ` : '⚡ Trigger ';
-    this.$('#btn-trigger').appendChild(kbdEl('Space'));
+    // relabel only when the armed count changes (this runs every frame)
+    const armedCount = legal?.triggers.length ?? 0;
+    if (armedCount !== this.lastArmed) {
+      this.lastArmed = armedCount;
+      const btn = this.$('#btn-trigger');
+      btn.textContent = armedCount > 1 ? `⚡ Trigger (${armedCount} armed) ` : '⚡ Trigger ';
+      btn.appendChild(kbdEl('Space'));
+    }
     this.$('#btn-skip').classList.toggle('hidden', !legal?.skip);
     this.$('#btn-undo').classList.toggle('hidden', !legal?.undo);
     // trigger chips at armed tool positions
