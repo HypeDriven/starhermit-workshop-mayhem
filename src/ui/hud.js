@@ -39,6 +39,21 @@ export class Hud {
       <div class="trigger-chips" id="trigger-chips" aria-hidden="true"></div>
       <div class="toast-stack" id="toast-stack" aria-hidden="true"></div>
       <div class="countdown hidden" id="countdown" aria-hidden="true"></div>`;
+    // the tutorial card is placed below the objective/status row, whose
+    // height depends on wrapping: publish it as a CSS variable
+    {
+      const top = this.root.querySelector('.hud-top');
+      const sync = () => {
+        if (!top) return;
+        const base = this.root.getBoundingClientRect().top;
+        let bottom = top.getBoundingClientRect().bottom;
+        for (const c of top.children) bottom = Math.max(bottom, c.getBoundingClientRect().bottom); // cards may overflow the row
+        this.root.style.setProperty('--hud-top-h', `${Math.round(bottom - base)}px`);
+      };
+      if (top && typeof ResizeObserver === 'function') { const ro = new ResizeObserver(sync); ro.observe(top); for (const c of top.children) ro.observe(c); }
+      window.addEventListener('resize', sync);
+      sync();
+    }
     this.$ = (id) => this.root.querySelector(id);
     this.$('#btn-pause').addEventListener('click', () => onAction('pause'));
     this.$('#btn-trigger').addEventListener('click', () => onAction('trigger'));

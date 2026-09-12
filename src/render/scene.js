@@ -63,6 +63,11 @@ export class GameScene {
     this.camera = new THREE.PerspectiveCamera(FRAMING.fov, 16 / 9, 0.1, 60);
     this.rig = new CameraRig(this.camera);
     this.rig.setReducedMotion(this.reducedMotion);
+    // the renderer was sized before the camera existed: apply the real
+    // aspect now so a portrait cold start is never framed at 16:9
+    this.applySize();
+    // the iframe can change size without a window resize event reaching us
+    if (typeof ResizeObserver === 'function') new ResizeObserver(() => this.applySize()).observe(this.canvas);
 
     // lighting rig: dominant key + soft environment fill + lamp point
     this.key = new THREE.DirectionalLight(t.key.color, t.key.intensity);
@@ -175,6 +180,7 @@ export class GameScene {
     this.renderPositionsBuf = new Float32Array(256 * 2);
     this.rig.setBounds(level.bounds);
     this.rig.snapToGameplay();
+    this.applyFog();
     this.prewarm();
   }
 
@@ -365,6 +371,18 @@ export class GameScene {
       this.camera.updateProjectionMatrix();
     }
     this.rig?.resize(w / h);
+    this.applyFog();
+  }
+
+  // Fog follows the framed camera distance so a far (portrait) camera never
+  // darkens the workshop into the murk.
+  applyFog() {
+    if (!this.scene?.fog || !this.rig) return;
+    const t = this.theme;
+    const d = this.rig.goalPos.distanceTo(this.rig.goalLook);
+    const k = Math.max(1, d / FRAMING.distance);
+    this.scene.fog.near = t.fog.near * k;
+    this.scene.fog.far = t.fog.far * k;
   }
 
   resize() { this.applySize(); }
