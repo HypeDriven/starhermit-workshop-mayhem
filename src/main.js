@@ -140,9 +140,16 @@ class GameApp {
 
   async reconcileCloud() {
     if (!this.platform.hosted) return;
+    // account identity: nickname via the profile endpoint (never JWT claims)
+    const nickname = await this.platform.loadAccountProfile();
+    if (nickname) {
+      this.profile = { ...this.profile, guest: false, name: nickname, displayName: nickname };
+      saveLocal('profile', this.profile);
+    }
     const r = await this.platform.cloudLoad('progression');
     if (r.error || !r.doc) {
-      await this.platform.cloudSave('progression', saveLocal('progression', this.progression));
+      // no cloud doc yet (or offline): push the local one as the first mirror
+      this.platform.cloudSave('progression', saveLocal('progression', this.progression));
       return;
     }
     const local = JSON.parse(localStorage.getItem('workshop-mayhem:progression') || 'null');
@@ -151,18 +158,10 @@ class GameApp {
       saveLocal('progression', this.progression);
       return;
     }
+    // remote-preferred: the cloud slot is the cross-device source of truth;
+    // a strictly-better local doc still wins on its own merits
     const res = resolveConflict(local, r.doc);
-    if (res.conflict) {
-      this.app.showOverlay('conflict', {
-        local: JSON.stringify(local), remote: JSON.stringify(r.doc),
-        onPick: (pick) => {
-          const chosen = pick === 'local' ? local : r.doc;
-          this.progression = chosen.data ?? chosen;
-          saveLocal('progression', this.progression);
-          if (this.app.current === 'journey') this.route('journey');
-        },
-      });
-    } else if (res.winner === 'remote') {
+    if (res.winner !== 'local') {
       this.progression = r.doc.data ?? r.doc;
       saveLocal('progression', this.progression);
     }
@@ -575,6 +574,7 @@ class GameApp {
     window.addEventListener('beforeunload', () => {
       this.platform.endActivity();
       this.platform.flushTelemetry();
+      this.platform.flushCloudSave();
     });
     window.addEventListener('error', (e) => {
       this.platform.telemetry('error', { category: e.error?.name ?? 'unknown' });

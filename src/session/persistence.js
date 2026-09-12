@@ -1,6 +1,7 @@
 // Versioned, checksummed persistence (spec §6 cloud-save document shape).
 // Local-first with a pluggable remote adapter; conflict helpers preserve both
-// snapshots so the player can choose when neither is a strict descendant.
+// snapshots so the caller can pick — the platform integration prefers the
+// remote copy, keeping localStorage as the offline cache.
 
 const STORE_PREFIX = 'workshop-mayhem:';
 

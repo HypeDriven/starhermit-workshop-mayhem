@@ -10,6 +10,12 @@ import { objectiveText } from './a11y.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const syncLabel = (s) => ({
+  offline: 'Offline — progress is cached on this device.',
+  saving: 'Syncing progress to your account…',
+  synced: 'Progress synced to your account.',
+  error: 'Sync hiccup — will retry automatically.',
+}[s] ?? '');
 
 export class App {
   constructor(game) {
@@ -159,7 +165,8 @@ export class App {
             <button class="action-btn" type="submit">Save</button>
           </form>
           <p class="muted">Account sign-in arrives with the hosted release; local guests keep full progress, boards and cosmetics.</p>
-        ` : `<p class="muted">Signed in as ${esc(g.profile.name)}.</p>`}
+        ` : `<p class="muted">Signed in as ${esc(g.profile.name)}.</p>
+          <p class="muted">${syncLabel(g.platform.syncStatus)}</p>`}
         <fieldset class="form-row">
           <legend>Profile privacy</legend>
           <label><input type="radio" name="privacy" value="public" ${g.profile.privacy === 'public' ? 'checked' : ''} /> Public boards</label>
@@ -408,7 +415,7 @@ export class App {
           <tbody>
             ${r.rows.slice(0, 25).map((row, i) => `
               <tr>
-                <td>${i + 1}</td><td>${esc(row.name ?? 'Inventor')}</td>
+                <td>${i + 1}</td><td>${esc(row.name ?? 'Player')}</td>
                 <td>${row.levelId ?? '—'}</td><td>${row.score}</td>
                 <td>${Math.floor((row.ticks ?? 0) / 120)}s</td>
               </tr>`).join('')}
@@ -709,37 +716,6 @@ export class App {
     const better = res.rows.filter(row => row.score > r.score.total).length;
     el.innerHTML = `<p>${better === 0 ? '👑 Top of the board!' : `Beats ${res.rows.length - better} of ${res.rows.length} scores${res.casual ? ' (casual board)' : ''}.`}</p>`;
   }
-
-  overlay_conflict(root, { local, remote, onPick }) {
-    root.innerHTML = `
-      <div class="scrim"></div>
-      <div class="panel narrow overlay-panel" role="dialog" aria-modal="true" aria-label="Save conflict">
-        <h1>Two saves found</h1>
-        <p>Your local progress and cloud progress have diverged. Both are kept — pick which to continue from.</p>
-        <div class="conflict-grid">
-          <button class="card" data-pick="local">
-            <strong>This device</strong>
-            <span>${describeProg(local)}</span>
-          </button>
-          <button class="card" data-pick="remote">
-            <strong>Cloud</strong>
-            <span>${describeProg(remote)}</span>
-          </button>
-        </div>
-      </div>`;
-    root.addEventListener('click', (e) => {
-      const pick = e.target.closest('[data-pick]')?.dataset.pick;
-      if (pick) { this.closeOverlay(); onPick(pick); }
-    });
-  }
-}
-
-function describeProg(doc) {
-  try {
-    const d = JSON.parse(doc);
-    const p = d.data ?? d;
-    return `${p.totalStars ?? 0}★ · ${p.xp ?? 0} XP · ${Object.keys(p.stars ?? {}).length} stages`;
-  } catch { return 'progress data'; }
 }
 
 function reasonText(reason) {
