@@ -1,4 +1,5 @@
 name=Workshop Mayhem
+description=Experiment with whimsical tools and a resilient training dummy to complete physics challenges and earn upgrades.
 launch=index.html
 owner=2712e04e-461b-4d23-81ae-e40b429128a8
 server=server.js
