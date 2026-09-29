@@ -149,7 +149,11 @@ Follow the skill pack's acceptance gate: deterministic seeds, debug views for co
 - Default active gameplay: ≤150 draw calls desktop, ≤90 mobile; ≤350k visible triangles desktop, ≤140k mobile; transient particles ≤20k desktop and ≤5k mobile.
 - Cap device pixel ratio by quality tier; dynamically lower render scale before dropping simulation rate. UI text remains native resolution.
 - Avoid runtime shader compilation during active play by prewarming required variants. Avoid per-frame allocations in simulation/render loops.
-- Quality tiers independently control shadows, environment detail, particles, post effects, antialiasing, and render scale; they never alter rules or visibility of hazards.
+- Quality presets independently control shadows, ambient occlusion, bloom, colour grade, antialiasing, reflections, particles, workshop detail, and render scale; they never alter rules or visibility of hazards.
+
+### Graphics
+
+Lighting combines a warm key directional light (PCF soft shadows whose shadow box is fitted to the current arena and the back wall it falls on), a hemisphere fill, a camera-side fill and the hanging lamp's point light, with ACES filmic tone mapping and sRGB output. With reflections on, a PMREM-filtered `RoomEnvironment` is the scene environment (low intensity so the workshop stays warm and dim), metals and varnished wood use `MeshPhysicalMaterial` clearcoat and plush uses fabric sheen; with reflections off, metals stay partly diffuse so the bell never reads as a black hole. Detailed workshop mode doubles procedural texture resolution (knots and grain streaks), fills the shelves and adds the side bench and a faint window light shaft. Particles are soft round sprites; the high particle tier raises the effect budget (800 → 6000) and adds drifting dust motes in the lamp light. The lamp sways gently and flickers; lamp sway, flicker and dust drift stop under the reduced-motion setting or `prefers-reduced-motion`. Optional post-processing (EffectComposer: render → GTAO → UnrealBloom on HDR values above ~1.05, so only the bulb, window and hot highlights glow → OutputPass → colour grade with S-curve, slight saturation, warm/cool split and vignette → SMAA or FXAA; MSAA through the canvas or a multisampled target) runs only when something needs it; if the chain cannot be built or throws, the game renders directly and the Graphics section says so. The Settings screen's **Graphics** section offers Quality (Auto — chosen from the unmasked GPU name: software renderers get Low, discrete GPUs and Apple M get High, others Balanced, and touch devices are capped at Balanced; Low; Balanced; High; Ultra), a render scale slider (50–200% of the preset's), one override per effect (shadows off/low/medium/high, ambient occlusion off/on/high, bloom, colour grade, antialiasing off/FXAA/SMAA/MSAA, reflections, particles low/high, workshop detail plain/detailed; "From preset (…)" by default; choosing a preset clears overrides), adaptive resolution (averages 90 frames; above 26 ms steps down 10% to a 60% floor, below 14 ms steps back up 5%) and a frame-rate readout (bottom-left, mid-left in portrait, never over controls), plus a "GPU · cost · W×H px" summary. Pixel ratio is min(device ratio, preset cap: Low 1, Balanced 1.5, High/Ultra 2) × render scale × adaptive scale. Changes apply immediately without a reload (material/environment rebuilds reuse the theme-change path), are saved in `settings.graphics` (older `tier` values migrate to presets), and the canvas carries `data-gfx-preset`. Panel strings are localized for en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR and it-IT from the browser language. The Low preset is no more expensive than the original low tier (no shadows, no post, no environment map, canvas MSAA).
 
 ## 5. Technical architecture
 
@@ -158,8 +162,8 @@ Follow the skill pack's acceptance gate: deterministic seeds, debug views for co
 - `bootstrap`: host handshake, capability detection, asset manifest, lifecycle.
 - `rules`: pure deterministic state transitions, legality, scoring, seeded random stream.
 - `session`: local or hosted commands, snapshots, prediction policy, reconnect, replay.
-- `render`: Three.js scene graph, semantic entity views, camera, lighting, VFX, quality.
-- `ui`: responsive DOM shell, focus, localization, settings, overlays, accessibility mirror.
+- `render`: Three.js scene graph, semantic entity views, camera, lighting, VFX, graphics settings (`src/render/gfx.js` is the pure preset/override model; `src/render/scene.js` applies it and owns the post chain; three.js r170 addons are vendored under `vendor/addons/`).
+- `ui`: responsive DOM shell, focus, localization, settings, overlays, accessibility mirror (`src/ui/gfx-panel.js` renders and localizes the Graphics section).
 - `audio`: buses, event mapping, focus/background behavior, decode and memory policy.
 - `content`: versioned levels, themes, tutorials, validation metadata.
 - `platform`: token-aware REST/WebSocket adapter, retries, rate-limit handling, telemetry consent.
@@ -190,7 +194,7 @@ No module may mutate rules state except through a validated command. Rendering c
 
 ### Identity, profile, presence, and preferences
 - Support guest practice locally, then offer account sign-in for durable progress. Fetch the account nickname from `GET /api/v1/users/{id}/profile` (never `/api/v1/me`, never usernames; fall back to `Player ` + id prefix) and show it only where identity is useful. Hosted cloud saves carry progress across devices; local guests keep full progress on-device.
-- Store accessibility, audio, graphics tier, tutorial completion, camera preference, and rules options through per-game settings. Declare desktop action bindings and read player overrides; touch mappings remain responsive UI controls.
+- Store accessibility, audio, graphics settings, tutorial completion, camera preference, and rules options through per-game settings. Declare desktop action bindings and read player overrides; touch mappings remain responsive UI controls.
 - Cloud-save progression as a versioned, checksummed document in the single platform slot `GET/PUT /api/v1/me/cloud-saves/{slug}` (zip+base64), debounced with a pagehide flush; on divergence prefer the remote copy and keep localStorage as the offline cache. Never place credentials or private chat in saves.
 
 ### Discovery, activity, and social layer

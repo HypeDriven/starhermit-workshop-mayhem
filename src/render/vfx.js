@@ -4,19 +4,39 @@ import * as THREE from 'three';
 
 const MAX = 6000;
 
+// round, soft-edged sprite so sparks and confetti read as specks, not squares
+let dotTex = null;
+function softDot() {
+  if (dotTex) return dotTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.55, 'rgba(255,255,255,0.9)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  dotTex = new THREE.CanvasTexture(c);
+  dotTex.colorSpace = THREE.SRGBColorSpace;
+  return dotTex;
+}
+
 export class VfxPool {
-  constructor(scene, tier, theme) {
+  constructor(scene, cap, theme) {
     this.theme = theme;
-    this.cap = tier === 'low' ? 800 : tier === 'medium' ? 2500 : MAX;
+    this.cap = Math.min(MAX, cap || MAX);
     const geo = new THREE.BufferGeometry();
     this.pos = new Float32Array(MAX * 3);
+    for (let i = 0; i < MAX; i++) this.pos[i * 3 + 1] = -1000;
     this.col = new Float32Array(MAX * 3);
     this.size = new Float32Array(MAX);
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(this.col, 3));
     geo.setAttribute('size', new THREE.BufferAttribute(this.size, 1));
     this.points = new THREE.Points(geo, new THREE.PointsMaterial({
-      size: 0.09, vertexColors: true, transparent: true, opacity: 0.9,
+      size: 0.11, vertexColors: true, transparent: true, opacity: 0.95,
+      map: softDot(), alphaTest: 0.02,
       depthWrite: false, sizeAttenuation: true,
     }));
     this.points.frustumCulled = false;
@@ -28,6 +48,14 @@ export class VfxPool {
     this.head = 0;
     this.alive = 0;
     this.enabled = true;
+  }
+
+  // particle budget follows the Graphics "particles" setting (live)
+  setCap(cap) {
+    this.cap = Math.min(MAX, cap || MAX);
+    if (this.head >= this.cap) this.head = 0;
+    for (let i = this.cap; i < MAX; i++) { this.p[i].life = 0; this.size[i] = 0; this.pos[i * 3 + 1] = -1000; }
+    this.points.geometry.attributes.position.needsUpdate = true;
   }
 
   emit(n, fn) {
@@ -124,7 +152,7 @@ export class VfxPool {
     let alive = 0;
     for (let i = 0; i < this.cap; i++) {
       const p = this.p[i];
-      if (p.life <= 0) { this.size[i] = 0; continue; }
+      if (p.life <= 0) { this.size[i] = 0; this.pos[i * 3 + 1] = -1000; continue; }  // PointsMaterial ignores size: park dead specks out of view
       p.life -= dt;
       p.vy += p.g * dt;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
@@ -142,10 +170,12 @@ export class VfxPool {
   }
 
   setEnabled(on) {
+    if (on === this.enabled) return;
     this.enabled = on;
     if (!on) {
       this.size.fill(0);
-      this.points.geometry.attributes.size.needsUpdate = true;
+      for (let i = 0; i < MAX; i++) this.pos[i * 3 + 1] = -1000;
+      this.points.geometry.attributes.position.needsUpdate = true;
       for (const p of this.p) p.life = 0;
     }
   }

@@ -427,3 +427,21 @@ body.left-handed .context-actions { align-items: flex-start; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
 }
+
+/* graphics settings card */
+.settings .gfx-row { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 8px 0; }
+.gfx-row select { width: 100%; }
+.gfx-scale-line { display: flex; align-items: center; gap: 10px; }
+.gfx-scale-line input[type="range"] { flex: 1; min-width: 0; }
+.gfx-scale-line output { min-width: 3.5em; text-align: right; font-variant-numeric: tabular-nums; }
+.gfx-summary { overflow-wrap: anywhere; }
+#fps-meter {
+  position: fixed; left: calc(8px + var(--sal)); bottom: calc(8px + var(--sab)); z-index: 90;
+  pointer-events: none; font: 12px/1.2 monospace; color: var(--ink);
+  background: rgba(0, 0, 0, 0.55); padding: 3px 6px; border-radius: 6px;
+}
+#fps-meter[hidden] { display: none; }
+@media (max-width: 700px) and (orientation: portrait) {
+  /* the thumb tray owns the bottom edge: sit at the playfield's left edge instead */
+  #fps-meter { bottom: auto; top: 50%; }
+}

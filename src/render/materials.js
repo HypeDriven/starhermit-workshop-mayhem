@@ -2,8 +2,10 @@
 // readable state masks, no-post baseline legibility).
 import * as THREE from 'three';
 
-// tiny procedural canvas texture helper (wood grain / fabric weave)
-function makeTexture(kind, base, accent, size = 128) {
+// tiny procedural canvas texture helper (wood grain / fabric weave). The
+// detailed variant doubles the resolution and adds knots and fine grain noise.
+function makeTexture(kind, base, accent, detailed = false) {
+  const size = detailed ? 256 : 128;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d');
@@ -34,24 +36,58 @@ function makeTexture(kind, base, accent, size = 128) {
       g.stroke();
     }
   }
+  if (detailed) addDetail(g, kind, size);
   const tex = new THREE.CanvasTexture(c);
+  if (detailed) tex.anisotropy = 4;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
+// deterministic hash noise so the detailed textures never shimmer between builds
+function hash(i) {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function addDetail(g, kind, size) {
+  if (kind === 'wood') {
+    // a couple of small, soft knots stretched along the grain
+    for (let k = 0; k < 2; k++) {
+      const x = hash(k * 3 + 1) * size, y = hash(k * 3 + 2) * size, r = 2 + hash(k * 3 + 3) * 2.5;
+      g.globalAlpha = 0.16;
+      g.fillStyle = '#1a0f06';
+      g.beginPath(); g.ellipse(x, y, r * 2.6, r, 0, 0, 7); g.fill();
+    }
+  }
+  // fine grain: short streaks along the grain (wood) or faint slubs (fabric)
+  const n = kind === 'fabric' ? 500 : 700;
+  for (let i = 0; i < n; i++) {
+    const lx = hash(i * 1.37 + 7) * size, ly = hash(i * 2.91 + 3) * size;
+    g.globalAlpha = 0.03 + hash(i + 0.5) * 0.05;
+    g.fillStyle = hash(i * 5.3) > 0.5 ? '#ffffff' : '#000000';
+    g.fillRect(lx, ly, kind === 'wood' ? 4 + hash(i * 0.7) * 6 : 1, 1);
+  }
+  g.globalAlpha = 1;
+}
+
 const texCache = new Map();
-function tex(kind, base, accent) {
-  const key = `${kind}:${base}:${accent}`;
-  if (!texCache.has(key)) texCache.set(key, makeTexture(kind, base, accent));
+function tex(kind, base, accent, detailed = false) {
+  const key = `${kind}:${base}:${accent}:${detailed ? 'd' : 'p'}`;
+  if (!texCache.has(key)) texCache.set(key, makeTexture(kind, base, accent, detailed));
   return texCache.get(key);
 }
 
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
 
 export class MaterialFactory {
-  constructor(theme) {
+  // rich: physically based extras (clearcoat varnish on wood and metal, fabric
+  // sheen on plush) that pay off when the scene has an environment map.
+  // detailed: higher-resolution procedural textures with knots and grain.
+  constructor(theme, { rich = false, detailed = false } = {}) {
     this.theme = theme;
+    this.rich = rich;
+    this.detailed = detailed;
     this.owned = [];
   }
 
@@ -61,33 +97,57 @@ export class MaterialFactory {
     return m;
   }
 
+  // Physical when rich, plain Standard otherwise (the extras are dropped)
+  makeRich(params, extras) {
+    const m = this.rich
+      ? new THREE.MeshPhysicalMaterial({ ...params, ...extras })
+      : new THREE.MeshStandardMaterial(params);
+    this.owned.push(m);
+    return m;
+  }
+
+  tex(kind, base, accent) { return tex(kind, base, accent, this.detailed); }
+
   floorMat(alt = false) {
     const t = this.theme;
     const base = hex(alt ? t.floorAlt : t.floor);
-    const map = tex('wood', base, hex(t.wall));
+    const map = this.tex('wood', base, hex(t.wall));
     map.repeat.set(2, 2);
-    return this.make({ map, roughness: 0.85, metalness: 0.02 });
+    // a thin worn varnish so the lamp leaves a soft sheen on the boards
+    return this.makeRich({ map, roughness: 0.8, metalness: 0.02 }, { clearcoat: 0.12, clearcoatRoughness: 0.55 });
   }
 
   wallMat() {
     const t = this.theme;
-    const map = tex('wood', hex(t.wall), hex(t.shelf));
+    const map = this.tex('wood', hex(t.wall), hex(t.shelf));
     map.repeat.set(3, 2);
     return this.make({ map, roughness: 0.9, metalness: 0.02 });
   }
 
   woodMat(color, rough = 0.8) {
     // map carries the albedo; color stays white to avoid squaring the tint
-    return this.make({ color: 0xffffff, roughness: rough, metalness: 0.03, map: tex('wood', hex(color), '#00000055') });
+    return this.makeRich(
+      { color: 0xffffff, roughness: rough, metalness: 0.03, map: this.tex('wood', hex(color), '#00000055') },
+      { clearcoat: 0.3, clearcoatRoughness: 0.35 },
+    );
   }
 
   metalMat(color, rough = 0.35, metal = 0.85) {
-    return this.make({ color: 0xffffff, roughness: rough, metalness: metal, map: tex('metal', hex(color), '#ffffff44') });
+    // without an environment map a fully metallic surface has nothing to
+    // reflect and reads as a black hole: keep it partly diffuse instead
+    const metalness = this.rich ? metal : Math.min(metal, 0.45);
+    return this.makeRich(
+      { color: 0xffffff, roughness: rough, metalness, map: this.tex('metal', hex(color), '#ffffff44') },
+      { clearcoat: 0.6, clearcoatRoughness: 0.12 },
+    );
   }
 
   plushMat(color) {
-    const map = tex('fabric', hex(color), '#00000033');
-    return this.make({ color: 0xffffff, map, roughness: 0.95, metalness: 0.0 });
+    const map = this.tex('fabric', hex(color), '#00000033');
+    return this.makeRich(
+      { color: 0xffffff, map, roughness: 0.95, metalness: 0.0 },
+      { sheen: 0.45, sheenRoughness: 0.6, sheenColor: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.25) },
+    );
   }
 
   emissiveMat(color, intensity = 1.4) {

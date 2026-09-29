@@ -5,5 +5,6 @@ import './fuzz.test.mjs';
 import './golden.test.mjs';
 import './content.test.mjs';
 import './server.test.mjs';
+import './gfx.test.mjs';
 import { main } from './harness.mjs';
 main();

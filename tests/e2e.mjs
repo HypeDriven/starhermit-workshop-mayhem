@@ -192,6 +192,60 @@ async function playToTerminal(page) {
   return readState(page);
 }
 
+// ---------- Graphics settings through the visible Settings screen ----------
+const press = (page, sel, touch) => (touch ? page.tap(sel) : page.click(sel));
+const gfxAttr = (page) => page.evaluate(() => document.getElementById('gl').dataset.gfxPreset);
+const summary = async (page) => (await page.textContent('#gfx-summary')).trim();
+
+async function openGraphics(page, touch) {
+  await page.waitForFunction(() => window.app?.state === 'title', null, { timeout: 20000 });
+  await press(page, '#screen-root [data-act="settings"]', touch);
+  await page.waitForSelector('#gfx-card #gfx-preset', { state: 'visible' });
+}
+
+async function graphicsFlow(page, name, touch) {
+  await openGraphics(page, touch);
+  const auto = await page.inputValue('#gfx-preset');
+  if (auto !== 'auto') throw new Error(`default preset should be auto, got ${auto}`);
+  if (await gfxAttr(page) !== 'low') throw new Error('software GPU should resolve Auto to low');
+
+  await page.selectOption('#gfx-preset', 'low');
+  await page.waitForFunction(() => document.getElementById('gl').dataset.gfxPreset === 'low');
+  if (!/no shadows/.test(await summary(page))) throw new Error('low summary: ' + await summary(page));
+
+  await page.selectOption('#gfx-preset', 'ultra');
+  await page.waitForFunction(() => document.getElementById('gl').dataset.gfxPreset === 'ultra');
+  await page.waitForTimeout(400);
+
+  await page.selectOption('#gfx-preset', 'high');
+  await page.waitForFunction(() => document.getElementById('gl').dataset.gfxPreset === 'high');
+  await page.waitForTimeout(400);
+  if (!/2048² shadows/.test(await summary(page))) throw new Error('high summary: ' + await summary(page));
+  // one override: bloom off (label shows the preset's own tier by default)
+  const label = await page.textContent('#gfx-bloom option[value="preset"]');
+  if (!/On|on/.test(label)) throw new Error('bloom preset label: ' + label);
+  await page.selectOption('#gfx-bloom', 'off');
+  await page.waitForFunction(() => !/bloom/.test(document.getElementById('gfx-summary').textContent));
+  await page.screenshot({ path: SHOT('graphics', name) });
+  ok(`${name}: Graphics panel — Low, Ultra, High presets and a bloom override apply live`);
+
+  // survives reload
+  await page.reload({ waitUntil: 'load' });
+  await openGraphics(page, touch);
+  const [preset, bloom, attr] = [await page.inputValue('#gfx-preset'), await page.inputValue('#gfx-bloom'), await gfxAttr(page)];
+  if (preset !== 'high' || bloom !== 'off' || attr !== 'high') {
+    throw new Error(`graphics not persisted: preset=${preset} bloom=${bloom} canvas=${attr}`);
+  }
+  // choosing a preset clears overrides; back to Auto keeps the rest of the run cheap
+  await page.selectOption('#gfx-preset', 'auto');
+  await page.waitForFunction(() => document.getElementById('gl').dataset.gfxPreset === 'low');
+  const cleared = await page.inputValue('#gfx-bloom');
+  if (cleared !== 'preset') throw new Error('preset choice did not clear the bloom override');
+  await press(page, '#screen-root [data-act="back"]', touch);
+  await page.waitForSelector('#screen-root.screen-title');
+  ok(`${name}: Graphics settings persist across reload; preset choice clears overrides`);
+}
+
 // ---------- one full pass ----------
 async function runPass(browser, name, ctxOpts, { full }) {
   const errors = [];
@@ -199,10 +253,10 @@ async function runPass(browser, name, ctxOpts, { full }) {
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() !== 'error' || browserNoise.test(m.text())) return;
+    if (!['error', 'warning'].includes(m.type()) || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
     if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
-    errors.push(`console: ${m.text()}`);
+    errors.push(`console ${m.type()}: ${m.text()}`);
   });
   page.on('response', (r) => {
     const p = r.url();
@@ -215,6 +269,8 @@ async function runPass(browser, name, ctxOpts, { full }) {
     await page.waitForFunction(() => window.app?.state === 'title');
     await page.screenshot({ path: SHOT('title', name) });
     ok(`${name}: title screen visible ("Workshop Mayhem")`);
+
+    await graphicsFlow(page, name, !full);
 
     await startJourneyJ01(page);
     let st = await readState(page);

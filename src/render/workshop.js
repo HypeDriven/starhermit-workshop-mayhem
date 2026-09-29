@@ -1,25 +1,26 @@
 // Workshop environment: room shell, shelves with instanced props, pegboard,
 // hanging lamp, window light. Original procedural geometry, deterministic
-// visual seed, detail follows quality tier (spec §4 scene design).
+// visual seed, detail follows the Graphics "detail" setting; dust motes in
+// the lamp light follow "particles" (spec §4 scene design).
 import * as THREE from 'three';
 
 export class Workshop {
-  constructor(scene, factory, theme, rng, tier) {
+  constructor(scene, factory, theme, rng, { detail: detailSetting = 'detailed', particles = 'high' } = {}) {
     this.factory = factory;
     this.theme = theme;
     this.group = new THREE.Group();
     this.group.name = 'workshop';
     this.disposables = [];
-    this.build(rng, tier);
+    this.build(rng, detailSetting, particles);
     scene.add(this.group);
   }
 
   track(obj) { this.disposables.push(obj); return obj; }
 
-  build(rng, tier) {
+  build(rng, detailSetting, particles) {
     const t = this.theme;
     const F = this.factory;
-    const detail = tier === 'low' ? 0.35 : tier === 'medium' ? 0.7 : 1;
+    const detail = detailSetting === 'detailed' ? 1 : 0.35;
 
     // room: floor slab + two walls (back + left), sized beyond the arena
     const floorGeo = this.track(new THREE.BoxGeometry(17, 0.4, 9));
@@ -63,8 +64,38 @@ export class Workshop {
     this.buildShelves(rng, detail);
     this.buildPegboard(detail);
     this.buildLamp();
-    this.buildWindow();
+    this.buildWindow(detail > 0.5);
     if (detail > 0.5) this.buildBench();
+    if (particles === 'high') this.buildDust();
+  }
+
+  // drifting dust motes caught in the lamp and window light (decorative)
+  buildDust() {
+    const n = 160;
+    const pos = new Float32Array(n * 3);
+    this.dustSeed = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      const h = (k) => { const x = Math.sin((i * 4 + k) * 91.7 + 12.3) * 43758.5; return x - Math.floor(x); };
+      this.dustSeed.set([-7 + h(0) * 14, 0.4 + h(1) * 7, -2.8 + h(2) * 4.2, h(3) * 6.28], i * 4);
+      pos.set([this.dustSeed[i * 4], this.dustSeed[i * 4 + 1], this.dustSeed[i * 4 + 2]], i * 3);
+    }
+    const geo = this.track(new THREE.BufferGeometry());
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const c = document.createElement('canvas');
+    c.width = c.height = 32;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grd.addColorStop(0, 'rgba(255,255,255,1)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 32, 32);
+    const map = this.track(new THREE.CanvasTexture(c));
+    const mat = this.track(new THREE.PointsMaterial({
+      size: 0.05, map, color: this.theme.lamp.color, transparent: true, opacity: 0.55,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    }));
+    this.dust = new THREE.Points(geo, mat);
+    this.dust.frustumCulled = false;
+    this.group.add(this.dust);
   }
 
   buildShelves(rng, detail) {
@@ -159,28 +190,32 @@ export class Workshop {
 
   buildLamp() {
     const t = this.theme, F = this.factory;
+    // the lamp hangs from a pivot at the ceiling so it can sway gently
+    this.lampPivot = new THREE.Group();
+    this.lampPivot.position.set(0, 8.6, -0.6);
+    this.group.add(this.lampPivot);
     const cord = new THREE.Mesh(
       this.track(new THREE.CylinderGeometry(0.015, 0.015, 2.0, 6)),
       F.make({ color: 0x222222, roughness: 0.9 }),
     );
-    cord.position.set(0, 7.6, -0.6);
-    this.group.add(cord);
+    cord.position.set(0, -1.0, 0);
+    this.lampPivot.add(cord);
     const shade = new THREE.Mesh(
       this.track(new THREE.ConeGeometry(0.55, 0.5, 18, 1, true)),
       F.metalMat(t.accent, 0.5, 0.6),
     );
-    shade.position.set(0, 6.6, -0.6);
-    this.group.add(shade);
+    shade.position.set(0, -2.0, 0);
+    this.lampPivot.add(shade);
     const bulb = new THREE.Mesh(
       this.track(new THREE.SphereGeometry(0.16, 12, 10)),
       F.emissiveMat(t.lamp.color, 2.2),
     );
-    bulb.position.set(0, 6.45, -0.6);
-    this.group.add(bulb);
+    bulb.position.set(0, -2.15, 0);
+    this.lampPivot.add(bulb);
     this.bulb = bulb;
   }
 
-  buildWindow() {
+  buildWindow(shaft) {
     const t = this.theme, F = this.factory;
     const frame = new THREE.Mesh(
       this.track(new THREE.BoxGeometry(2.2, 2.6, 0.12)),
@@ -199,6 +234,30 @@ export class Workshop {
       const bar = new THREE.Mesh(barGeo, F.woodMat(t.accent, 0.7));
       bar.position.set(6.6 + x, 5.2, -2.97);
       this.group.add(bar);
+    }
+    if (shaft) {
+      // soft additive light shaft slanting from the window to the floor
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 128;
+      const g = c.getContext('2d');
+      const lin = g.createLinearGradient(0, 0, 0, 128);
+      lin.addColorStop(0, 'rgba(255,255,255,0.9)');
+      lin.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = lin; g.fillRect(0, 0, 64, 128);
+      const side = g.createLinearGradient(0, 0, 64, 0);
+      g.globalCompositeOperation = 'destination-in';
+      side.addColorStop(0, 'rgba(0,0,0,0)'); side.addColorStop(0.3, 'rgba(0,0,0,1)');
+      side.addColorStop(0.7, 'rgba(0,0,0,1)'); side.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = side; g.fillRect(0, 0, 64, 128);
+      const map = this.track(new THREE.CanvasTexture(c));
+      const mat = this.track(new THREE.MeshBasicMaterial({
+        map, color: t.hemi.sky, transparent: true, opacity: 0.045, depthWrite: false,
+        blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+      }));
+      const beam = new THREE.Mesh(this.track(new THREE.PlaneGeometry(1.6, 6.0)), mat);
+      beam.position.set(5.6, 3.0, -1.6);
+      beam.rotation.set(-0.55, 0.35, 0.28);
+      this.group.add(beam);
     }
   }
 
@@ -219,11 +278,38 @@ export class Workshop {
     }
   }
 
-  update(time) {
-    // lamp flicker (subtle, decorative; paused with decorative motion)
-    if (this.bulb) {
-      const f = 1 + Math.sin(time * 7.3) * 0.02 + Math.sin(time * 17.7) * 0.015;
-      this.bulb.material.emissiveIntensity = 2.2 * f;
+  update(time, dt = 0, { reducedMotion = false, lamp = null } = {}) {
+    if (reducedMotion) {
+      // ambient motion stops: lamp hangs still, dust holds its place
+      if (this.lampPivot) this.lampPivot.rotation.set(0, 0, 0);
+      if (this.bulb) this.bulb.material.emissiveIntensity = 2.2;
+    } else {
+      // lamp flicker + gentle sway (subtle, decorative; paused with decorative motion)
+      if (this.bulb) {
+        const f = 1 + Math.sin(time * 7.3) * 0.02 + Math.sin(time * 17.7) * 0.015;
+        this.bulb.material.emissiveIntensity = 2.2 * f;
+      }
+      if (this.lampPivot) {
+        this.lampPivot.rotation.z = Math.sin(time * 0.9) * 0.035;
+        this.lampPivot.rotation.x = Math.sin(time * 0.63 + 1.1) * 0.02;
+      }
+      if (this.dust) {
+        const pos = this.dust.geometry.attributes.position;
+        const a = pos.array, sd = this.dustSeed;
+        for (let i = 0; i < a.length / 3; i++) {
+          const ph = sd[i * 4 + 3];
+          a[i * 3] = sd[i * 4] + Math.sin(time * 0.21 + ph) * 0.35;
+          a[i * 3 + 1] = sd[i * 4 + 1] + Math.sin(time * 0.13 + ph * 1.7) * 0.3;
+          a[i * 3 + 2] = sd[i * 4 + 2] + Math.cos(time * 0.17 + ph) * 0.2;
+        }
+        pos.needsUpdate = true;
+      }
+    }
+    // the point light follows the swaying bulb
+    if (lamp && this.bulb) {
+      this.bulb.updateWorldMatrix(true, false);
+      lamp.position.setFromMatrixPosition(this.bulb.matrixWorld);
+      lamp.position.y -= 0.15;
     }
   }
 

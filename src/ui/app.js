@@ -7,6 +7,7 @@ import { ACHIEVEMENTS } from '../content/achievements.js';
 import { TOOLS } from '../rules/engine.js';
 import { BINDING_LABELS } from './input.js';
 import { objectiveText } from './a11y.js';
+import { graphicsCardHtml, bindGraphicsCard } from './gfx-panel.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -540,14 +541,8 @@ export class App {
               </label>`).join('')}
             <label><input type="checkbox" data-setting="audio.muted" ${s.audio.muted ? 'checked' : ''} /> Mute all</label>
           </section>
-          <section class="card">
-            <h2>Graphics</h2>
-            <label class="form-row">Quality tier
-              <select data-setting="graphics.tier">
-                ${['auto', 'low', 'medium', 'high'].map(t => `<option ${s.graphics.tier === t ? 'selected' : ''}>${t}</option>`).join('')}
-              </select>
-            </label>
-            <p class="muted">Tiers control shadows, environment detail, particles, post effects, AA and render scale — never the rules.</p>
+          <section class="card gfx-card" id="gfx-card" data-section="graphics">
+            ${graphicsCardHtml(s.graphics, g.scene.graphicsInfo())}
           </section>
           <section class="card">
             <h2>Accessibility</h2>
@@ -583,6 +578,11 @@ export class App {
         <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
       </div>`;
     this.renderBindings($('#bindings-list', root));
+    bindGraphicsCard($('#gfx-card', root), {
+      getSaved: () => g.settings.graphics,
+      apply: (next) => g.setGraphics(next),
+      getInfo: () => g.scene.graphicsInfo(),
+    });
     root.addEventListener('input', (e) => {
       const audioBus = e.target.dataset.audio;
       if (audioBus) g.setAudioBus(audioBus, parseFloat(e.target.value));

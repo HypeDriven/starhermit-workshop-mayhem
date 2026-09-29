@@ -49,7 +49,7 @@ const MIGRATIONS = {
         captions: true, colorPalette: 'default',
       },
       bindings: d.bindings || null,
-      graphics: { ...{ tier: 'auto', renderScale: 1 }, ...(d.graphics || {}) },
+      graphics: { ...{ preset: 'auto', render_scale: 1, adaptive: true, show_fps: false }, ...(d.graphics || {}) },
     }),
   },
   progression: {
@@ -133,7 +133,7 @@ function scoreOf(d) {
 
 export const DEFAULT_SETTINGS = {
   audio: { music: 0.7, effects: 0.9, ambience: 0.5, voice: 0.8, muted: false },
-  graphics: { tier: 'auto', renderScale: 1 },
+  graphics: { preset: 'auto', render_scale: 1, adaptive: true, show_fps: false },
   accessibility: {
     reducedMotion: false, highContrast: false, largeText: false,
     leftHanded: false, holdToAim: true, timingAssist: false, haptics: true,

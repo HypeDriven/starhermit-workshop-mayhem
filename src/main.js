@@ -19,6 +19,7 @@ import {
   loadLocal, saveLocal, DEFAULT_SETTINGS, DEFAULT_PROFILE, DEFAULT_PROGRESSION,
   resolveConflict,
 } from './session/persistence.js';
+import { migrate } from './render/gfx.js';
 
 const MAX_DT = 1 / 20;
 
@@ -26,6 +27,7 @@ class GameApp {
   constructor() {
     this.state = 'boot';
     this.settings = loadLocal('settings') ?? structuredClone(DEFAULT_SETTINGS);
+    this.settings.graphics = migrate(this.settings.graphics);
     this.profile = loadLocal('profile') ?? structuredClone(DEFAULT_PROFILE);
     this.progression = loadLocal('progression') ?? structuredClone(DEFAULT_PROGRESSION);
     this.achievementsDoc = loadLocal('achievements') ?? emptyAchievementDoc();
@@ -64,7 +66,7 @@ class GameApp {
     this.audio.onCaption((t) => this.mirror.caption(t));
 
     this.scene = new GameScene(canvas, {
-      tier: this.settings.graphics.tier,
+      graphics: this.settings.graphics,
       palette: this.settings.accessibility.colorPalette,
       onContextLoss: (lost) => this.onContextLoss(lost),
     });
@@ -469,9 +471,17 @@ class GameApp {
     const [a, b] = path.split('.');
     this.settings[a][b] = value;
     if (path === 'audio.muted') this.audio.setMuted(value);
-    if (path === 'graphics.tier') this.scene.setTier(value);
     this.saveSettings();
     this.platform.telemetry('settings-change', { setting: path });
+  }
+
+  // Graphics panel: the whole graphics object is replaced (preset choice
+  // clears overrides in gfx.withPreset) and applied live.
+  setGraphics(graphics) {
+    this.settings.graphics = migrate(graphics);
+    this.scene.setGraphics(this.settings.graphics);
+    this.saveSettings();
+    this.platform.telemetry('settings-change', { setting: 'graphics' });
   }
 
   setAccessibility(key, value) {
