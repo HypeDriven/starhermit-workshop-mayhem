@@ -445,3 +445,12 @@ body.left-handed .context-actions { align-items: flex-start; }
   /* the thumb tray owns the bottom edge: sit at the playfield's left edge instead */
   #fps-meter { bottom: auto; top: 50%; }
 }
+
+/* StarHermit toast (invite link copied, signed out). */
+.sh-toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%); max-width: min(92vw, 520px); padding: 10px 16px;
+  background: var(--panel-solid); color: var(--ink); border: 1px solid var(--accent);
+  border-radius: var(--radius); text-align: center; overflow-wrap: anywhere; z-index: 200; pointer-events: none;
+}
+.sh-toast[hidden] { display: none; }

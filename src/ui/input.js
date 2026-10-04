@@ -9,6 +9,7 @@ export const DEFAULT_BINDINGS = {
     undo: 'KeyU', hint: 'KeyH', restart: 'KeyR', skip: 'KeyS',
     camera: 'KeyC', mute: 'KeyM', tool1: 'Digit1', tool2: 'Digit2',
     tool3: 'Digit3', tool4: 'Digit4', tool5: 'Digit5',
+    cursorUp: 'ArrowUp', cursorDown: 'ArrowDown', cursorLeft: 'ArrowLeft', cursorRight: 'ArrowRight',
   },
   gamepad: {
     confirm: 0, cancel: 1, trigger: 2, hint: 3, toolPrev: 4, toolNext: 5,
@@ -23,7 +24,22 @@ export const BINDING_LABELS = {
   tool1: 'Tool slot 1', tool2: 'Tool slot 2', tool3: 'Tool slot 3',
   tool4: 'Tool slot 4', tool5: 'Tool slot 5',
   toolPrev: 'Previous tool', toolNext: 'Next tool',
+  cursorUp: 'Move cursor up', cursorDown: 'Move cursor down',
+  cursorLeft: 'Move cursor left', cursorRight: 'Move cursor right',
 };
+
+// A keyboard binding is one KeyboardEvent.code or several (platform bindings).
+export function codesOf(binding) { return binding == null ? [] : [].concat(binding); }
+export function keyLabel(code) {
+  const glyph = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc' };
+  return glyph[code] ?? String(code).replace(/^Key/, '').replace(/^Digit/, '');
+}
+export function bindingText(binding) { return codesOf(binding).map(keyLabel).join(' / '); }
+
+/** Keyboard defaults as { action: codes[] } — the shape StarHermit.loadBindings expects. */
+export function defaultKeyboardCodes() {
+  return Object.fromEntries(Object.entries(DEFAULT_BINDINGS.keyboard).map(([k, v]) => [k, codesOf(v)]));
+}
 
 const TOOL_ORDER = ['piston', 'pad', 'fan', 'magnet', 'weight'];
 const TAP_DIST = 10;      // px
@@ -254,7 +270,8 @@ export class InputController {
     if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
     const kb = this.bindings.keyboard;
     const code = e.code;
-    const toolKey = Object.entries(kb).find(([k]) => k.startsWith('tool') && kb[k] === code);
+    const action = Object.keys(kb).find(k => codesOf(kb[k]).includes(code));
+    const toolKey = action && /^tool\d$/.test(action) ? [action] : null;
     if (toolKey && toolKey[0].length === 5) {
       const idx = parseInt(toolKey[0].slice(4), 10) - 1;
       const stockTool = TOOL_ORDER.filter(t => (this.state?.stock[t] ?? 0) > 0)[idx]
@@ -263,22 +280,23 @@ export class InputController {
       e.preventDefault();
       return;
     }
-    if (this.selectedTool && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
-      this.moveVirtualCursor(code, e.shiftKey);
+    const CURSOR = { cursorUp: 'ArrowUp', cursorDown: 'ArrowDown', cursorLeft: 'ArrowLeft', cursorRight: 'ArrowRight' };
+    if (this.selectedTool && CURSOR[action]) {
+      this.moveVirtualCursor(CURSOR[action], e.shiftKey);
       e.preventDefault();
       return;
     }
-    switch (code) {
-      case kb.confirm: this.keyConfirm(); e.preventDefault(); break;
-      case kb.trigger: this.keyTrigger(); e.preventDefault(); break;
-      case kb.cancel: this.keyCancel(); e.preventDefault(); break;
-      case kb.pause: this.cb.pause?.(); e.preventDefault(); break;
-      case kb.undo: this.cb.undo?.(); e.preventDefault(); break;
-      case kb.hint: this.cb.hint?.(); e.preventDefault(); break;
-      case kb.restart: this.cb.restart?.(); e.preventDefault(); break;
-      case kb.skip: this.cb.skip?.(); e.preventDefault(); break;
-      case kb.camera: this.cb.cameraReset?.(); e.preventDefault(); break;
-      case kb.mute: this.cb.mute?.(); e.preventDefault(); break;
+    switch (action) {
+      case 'confirm': this.keyConfirm(); e.preventDefault(); break;
+      case 'trigger': this.keyTrigger(); e.preventDefault(); break;
+      case 'cancel': this.keyCancel(); e.preventDefault(); break;
+      case 'pause': this.cb.pause?.(); e.preventDefault(); break;
+      case 'undo': this.cb.undo?.(); e.preventDefault(); break;
+      case 'hint': this.cb.hint?.(); e.preventDefault(); break;
+      case 'restart': this.cb.restart?.(); e.preventDefault(); break;
+      case 'skip': this.cb.skip?.(); e.preventDefault(); break;
+      case 'camera': this.cb.cameraReset?.(); e.preventDefault(); break;
+      case 'mute': this.cb.mute?.(); e.preventDefault(); break;
     }
   }
 

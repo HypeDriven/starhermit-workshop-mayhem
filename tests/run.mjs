@@ -6,5 +6,6 @@ import './golden.test.mjs';
 import './content.test.mjs';
 import './server.test.mjs';
 import './gfx.test.mjs';
+import './platform.test.mjs';
 import { main } from './harness.mjs';
 main();

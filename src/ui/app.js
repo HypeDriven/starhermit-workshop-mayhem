@@ -5,7 +5,10 @@ import { TUTORIALS } from '../content/tutorials.js';
 import { THEMES, THEME_ORDER, themeUnlocked } from '../content/themes.js';
 import { ACHIEVEMENTS } from '../content/achievements.js';
 import { TOOLS } from '../rules/engine.js';
-import { BINDING_LABELS } from './input.js';
+import { BINDING_LABELS, bindingText } from './input.js';
+import { platformStrings } from './platform-strings.js';
+
+const pt = platformStrings();
 import { objectiveText } from './a11y.js';
 import { graphicsCardHtml, bindGraphicsCard } from './gfx-panel.js';
 
@@ -137,12 +140,16 @@ export class App {
           <button data-act="cosmetics">Workshop&nbsp;&amp;&nbsp;Style</button>
           <button data-act="help">Help</button>
           <button data-act="settings">Settings</button>
+          ${g.platform.canSignIn() ? `<button data-act="signin" id="btn-signin">${esc(pt('signIn'))}</button>` : ''}
+          ${g.platform.hosted && g.platform.inviteLink() ? `<button data-act="invite" id="btn-invite">${esc(pt('invite'))}</button>` : ''}
         </nav>
       </div>`;
     root.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (!act) return;
       g.audio.event({ t: 'ui-click' });
+      if (act === 'signin') { g.platform.signIn(); return; }
+      if (act === 'invite') { g.copyInvite(); return; }
       g.route(act);
     });
   }
@@ -165,9 +172,11 @@ export class App {
             <input id="display-name" maxlength="24" value="${esc(g.profile.displayName)}" />
             <button class="action-btn" type="submit">Save</button>
           </form>
-          <p class="muted">Account sign-in arrives with the hosted release; local guests keep full progress, boards and cosmetics.</p>
+          ${g.platform.canSignIn() ? `<button class="action-btn" data-act="signin">${esc(pt('signIn'))}</button>` : ''}
+          <p class="muted">Local guests keep full progress, boards and cosmetics on this device.</p>
         ` : `<p class="muted">Signed in as ${esc(g.profile.name)}.</p>
-          <p class="muted">${syncLabel(g.platform.syncStatus)}</p>`}
+          <p class="muted">${syncLabel(g.platform.syncStatus)}</p>
+          ${g.platform.hosted && g.platform.inviteLink() ? `<button class="action-btn" data-act="invite">${esc(pt('invite'))}</button>` : ''}`}
         <fieldset class="form-row">
           <legend>Profile privacy</legend>
           <label><input type="radio" name="privacy" value="public" ${g.profile.privacy === 'public' ? 'checked' : ''} /> Public boards</label>
@@ -184,6 +193,8 @@ export class App {
     root.addEventListener('change', (e) => {
       if (e.target.name === 'privacy') g.setPrivacy(e.target.value);
     });
+    $('[data-act="signin"]', root)?.addEventListener('click', () => g.platform.signIn());
+    $('[data-act="invite"]', root)?.addEventListener('click', () => g.copyInvite());
     $('[data-act="back"]', root).addEventListener('click', () => g.route('title'));
   }
 
@@ -516,7 +527,7 @@ export class App {
         <div class="card rule-card">
           <h3>Controls (current bindings)</h3>
           <ul class="bindings-list">
-            ${Object.entries(kb).map(([act, code]) => `<li><strong>${BINDING_LABELS[act] ?? act}</strong>: <kbd>${code.replace('Key', '').replace('Digit', '')}</kbd></li>`).join('')}
+            ${Object.entries(kb).map(([act, code]) => `<li><strong>${BINDING_LABELS[act] ?? act}</strong>: <kbd>${esc(bindingText(code))}</kbd></li>`).join('')}
             <li><strong>Gamepad</strong>: stick moves cursor, A places, X triggers, B cancels, Start pauses. Rebind in Settings.</li>
           </ul>
         </div>
@@ -613,7 +624,7 @@ export class App {
     el.innerHTML = Object.entries(BINDING_LABELS).filter(([k]) => kb[k]).map(([act]) => `
       <div class="binding-row">
         <span>${BINDING_LABELS[act]}</span>
-        <button class="binding-key" data-rebind="${act}">${kb[act].replace('Key', '').replace('Digit', '')}</button>
+        <button class="binding-key" data-rebind="${act}">${esc(bindingText(kb[act]))}</button>
       </div>`).join('');
   }
 

@@ -6,7 +6,8 @@ import { GameScene } from './render/scene.js';
 import { SessionController } from './session/session.js';
 import { App } from './ui/app.js';
 import { Hud } from './ui/hud.js';
-import { InputController } from './ui/input.js';
+import { InputController, defaultKeyboardCodes } from './ui/input.js';
+import { platformStrings } from './ui/platform-strings.js';
 import { Announcer, BoardMirror } from './ui/a11y.js';
 import { AudioSystem } from './audio/audio.js';
 import { Platform } from './platform/client.js';
@@ -22,6 +23,10 @@ import {
 import { migrate } from './render/gfx.js';
 
 const MAX_DT = 1 / 20;
+
+// Player preferences mirrored to the StarHermit settings KV (key bindings go
+// through the platform controls API instead).
+const SYNCED_SETTINGS = ['audio', 'graphics', 'accessibility', 'camera', 'rules', 'telemetryConsent', 'lastTheme'];
 
 class GameApp {
   constructor() {
@@ -106,6 +111,7 @@ class GameApp {
     this.platform.startActivity();
     this.markLoaded(4, 0.9);
     await this.reconcileCloud();
+    await this.adoptPlatformPrefs();
 
     this.dailyLevel = dailyLevel(this.platform.utcDay());
     this.dailyInfo = { label: new Date(this.platform.now()).toISOString().slice(5, 10) };
@@ -116,6 +122,73 @@ class GameApp {
     this.toTitle();
     this.platform.telemetry('start', { mode: 'boot' });
     this.startLoop();
+  }
+
+  // Hosted: platform settings win over local ones, and the player's
+  // StarHermit key bindings replace local keyboard overrides.
+  async adoptPlatformPrefs() {
+    this.pt = platformStrings();
+    this.platform.onAuthChange = () => {
+      this.toast(this.pt('signedOut'));
+      if (this.app.current === 'title') this.app.show('title');
+    };
+    if (!this.platform.hosted) return;
+    const remote = await this.platform.getSettings();
+    let changed = false;
+    for (const k of SYNCED_SETTINGS) {
+      const v = remote?.[k];
+      if (v === undefined || v === null) continue;
+      const want = k === 'telemetryConsent' ? 'boolean' : typeof DEFAULT_SETTINGS[k];
+      if (typeof v !== want) continue;
+      this.settings[k] = want === 'object' ? { ...DEFAULT_SETTINGS[k], ...v } : v;
+      changed = true;
+    }
+    if (changed) {
+      this.applyAccessibility?.();
+      this.settings.graphics = migrate(this.settings.graphics);
+      saveLocal('settings', this.settings);
+      this.audio.setVolumes(this.settings.audio);
+      this.audio.setMuted(this.settings.audio.muted);
+      this.scene.setGraphics(this.settings.graphics);
+      this.platform.setTelemetryConsent(!!this.settings.telemetryConsent);
+    }
+    const defaults = defaultKeyboardCodes();
+    const bound = await this.platform.loadBindings(defaults);
+    const keyboard = {};
+    for (const [action, codes] of Object.entries(bound)) {
+      if (JSON.stringify(codes) !== JSON.stringify(defaults[action])) keyboard[action] = codes.length === 1 ? codes[0] : codes;
+    }
+    this.settings.bindings = { keyboard, gamepad: this.settings.bindings?.gamepad ?? {} };
+    this.input.bindings.keyboard = Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, v.length === 1 ? v[0] : v]));
+    this.input.setBindings(this.settings.bindings);
+    saveLocal('settings', this.settings);
+  }
+
+  async copyInvite() {
+    const link = this.platform.inviteLink();
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      this.toast(this.pt('inviteCopied'));
+    } catch {
+      this.toast(this.pt('inviteFailed', { link }));
+    }
+  }
+
+  toast(text) {
+    let t = document.getElementById('sh-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'sh-toast';
+      t.className = 'sh-toast';
+      t.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(t);
+    }
+    t.textContent = text;
+    t.hidden = false;
+    this.announcer.say(text);
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
   }
 
   markLoaded(i, p) {
@@ -458,7 +531,16 @@ class GameApp {
   }
 
   // --- settings -------------------------------------------------------------------
-  saveSettings() { saveLocal('settings', this.settings); }
+  saveSettings() {
+    saveLocal('settings', this.settings);
+    if (!this.platform?.hosted) return;
+    clearTimeout(this.settingsPushTimer);
+    this.settingsPushTimer = setTimeout(() => {
+      const out = {};
+      for (const k of SYNCED_SETTINGS) out[k] = this.settings[k];
+      this.platform.patchSettings(out);
+    }, 500);
+  }
 
   setAudioBus(bus, v) {
     this.settings.audio[bus] = v;
@@ -535,6 +617,7 @@ class GameApp {
     this.settings.bindings.keyboard[action] = code;
     this.input.setBindings(this.settings.bindings);
     this.saveSettings();
+    this.platform.setControl(action, [code]);
   }
 
   toggleMute() {
@@ -556,7 +639,8 @@ class GameApp {
 
     // Escape closes the pause dialog even though play input is locked while paused
     window.addEventListener('keydown', (e) => {
-      if (e.code !== 'Escape' || this.app.overlay !== 'pause') return;
+      const cancel = [].concat(this.input.bindings.keyboard.cancel ?? 'Escape');
+      if (!cancel.includes(e.code) || this.app.overlay !== 'pause') return;
       e.preventDefault();
       this.resumeGame();
     });
