@@ -48,7 +48,7 @@ export class Hud {
         const base = this.root.getBoundingClientRect().top;
         let bottom = top.getBoundingClientRect().bottom;
         for (const c of top.children) bottom = Math.max(bottom, c.getBoundingClientRect().bottom); // cards may overflow the row
-        this.root.style.setProperty('--hud-top-h', `${Math.round(bottom - base)}px`);
+        this.root.style.setProperty('--hud-top-h', `${Math.round((bottom - base) / (window.UIScale?.value || 1))}px`); // layout px inside the zoomed HUD
       };
       if (top && typeof ResizeObserver === 'function') { const ro = new ResizeObserver(sync); ro.observe(top); for (const c of top.children) ro.observe(c); }
       window.addEventListener('resize', sync);
@@ -173,7 +173,11 @@ export class Hud {
           this.chips.set(t.toolId, chip);
         }
         const scr = input.scene.worldToScreen(t.x, t.y + 0.55, 0);
-        chip.style.transform = `translate(${scr.x - 22}px, ${scr.y - 22}px)`;
+        const z = window.UIScale?.value || 1; // scr is visual px; the HUD is zoomed by --ui-scale
+        // keep the 44px chip on screen even when its tool sits at the viewport edge
+        const cx = Math.max(0, Math.min(window.innerWidth / z - 44, scr.x / z - 22));
+        const cy = Math.max(0, Math.min(window.innerHeight / z - 44, scr.y / z - 22));
+        chip.style.transform = `translate(${cx}px, ${cy}px)`;
         chip.style.display = scr.behind ? 'none' : 'block';
       }
     }

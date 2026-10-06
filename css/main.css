@@ -127,7 +127,9 @@ kbd {
 #overlay-root { position: absolute; inset: 0; z-index: 60; }
 .scrim { position: absolute; inset: 0; background: rgba(10, 8, 4, 0.55); backdrop-filter: blur(3px); }
 .overlay-panel {
-  position: relative; margin: 8vh auto 0; background: var(--panel-solid);
+  position: relative; margin: calc(8vh / var(--ui-scale, 1)) auto 0; background: var(--panel-solid);
+  /* sized to its content (not .panel's height:100%, which ran 8vh past the bottom edge) */
+  height: auto; max-height: calc(100% - 2 * 8vh / var(--ui-scale, 1));
   border-radius: var(--radius); border: 1px solid rgba(216, 162, 74, 0.35);
   box-shadow: 0 12px 48px rgba(0,0,0,0.5);
 }
@@ -137,7 +139,7 @@ kbd {
 }
 .logo-badge { font-size: 4rem; animation: spin 6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.load-bar { width: min(320px, 70vw); height: 12px; background: rgba(255,255,255,0.12); border-radius: 8px; overflow: hidden; }
+.load-bar { width: min(320px, calc(70vw / var(--ui-scale, 1))); height: 12px; background: rgba(255,255,255,0.12); border-radius: 8px; overflow: hidden; }
 .load-bar > div { height: 100%; background: var(--accent); transition: width 0.3s; }
 .load-groups { list-style: none; padding: 0; color: var(--ink-dim); font-size: 0.9rem; }
 .load-groups li::before { content: '○ '; }
@@ -148,16 +150,16 @@ kbd {
   min-height: 100%; display: flex; flex-direction: column; justify-content: center;
   max-width: 30rem; margin: 0 auto; text-align: center; gap: 10px;
 }
-.game-logo { font-size: clamp(2rem, 6vw, 3rem); margin: 0; text-shadow: 0 4px 24px rgba(0,0,0,0.6); }
+.game-logo { font-size: clamp(2rem, calc(6vw / var(--ui-scale, 1)), 3rem); margin: 0; text-shadow: 0 4px 24px rgba(0,0,0,0.6); }
 .logo-gear { display: inline-block; animation: spin 12s linear infinite; }
-.tagline { color: var(--ink-dim); margin-top: -6px; }
+.tagline { color: var(--ink-dim); margin-top: -6px; text-shadow: 0 1px 6px rgba(0,0,0,0.85); }
 .title-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 .title-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .chip { display: flex; flex-direction: column; padding: 10px; font-size: 0.8rem; gap: 2px; }
 .chip strong { font-size: 0.9rem; }
 .chip span { color: var(--ink-dim); }
 .title-links { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 16px; }
-.title-links button { background: none; border: none; color: var(--accent-2); padding: 8px 10px; min-height: 44px; text-decoration: underline; }
+.title-links button { background: none; border: none; color: var(--accent-2); padding: 8px 10px; min-height: 44px; text-decoration: underline; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
 .title-links button:hover { color: #fff; }
 
 /* mode grid */
@@ -290,7 +292,7 @@ input[type="range"] { accent-color: var(--accent); min-height: 32px; }
 .tutorial-card {
   /* below the measured status/objective row (--hud-top-h from hud.js) */
   position: absolute; top: calc(var(--hud-top-h, 76px) + 8px); left: 50%; transform: translateX(-50%);
-  max-width: min(420px, 88vw); text-align: center; padding: 12px 18px;
+  max-width: min(420px, calc(88vw / var(--ui-scale, 1))); text-align: center; padding: 12px 18px;
   border-color: var(--accent-2);
 }
 .tutorial-text { font-size: 1rem; }
@@ -338,13 +340,13 @@ input[type="range"] { accent-color: var(--accent); min-height: 32px; }
 .toast {
   background: rgba(120, 30, 24, 0.92); color: #ffd8d0; padding: 8px 16px; border-radius: 10px;
   font-size: 0.9rem; opacity: 0; transform: translateY(8px); transition: all 0.25s;
-  max-width: 80vw; text-align: center;
+  max-width: calc(80vw / var(--ui-scale, 1)); text-align: center;
 }
 .toast.show { opacity: 1; transform: none; }
 
 .countdown {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: clamp(4rem, 18vw, 9rem); font-weight: 900; color: var(--accent);
+  font-size: clamp(4rem, calc(18vw / var(--ui-scale, 1)), 9rem); font-weight: 900; color: var(--accent);
   text-shadow: 0 6px 40px rgba(0,0,0,0.7); pointer-events: none; z-index: 28;
 }
 
@@ -370,7 +372,7 @@ input[type="range"] { accent-color: var(--accent); min-height: 32px; }
 
 /* portrait mobile: top status, bottom thumb tray, sheet-style panels */
 @media (max-width: 700px) and (orientation: portrait) {
-  .objective-card { max-width: 46vw; font-size: 0.8rem; padding: 8px 10px; }
+  .objective-card { max-width: calc(46vw / var(--ui-scale, 1)); font-size: 0.8rem; padding: 8px 10px; }
   .objective-intro, .objective-bonus { display: none; }
   .hud-bottom { flex-direction: column; align-items: stretch; }
   .tool-tray { justify-content: center; order: 2; }
@@ -397,6 +399,16 @@ input[type="range"] { accent-color: var(--accent); min-height: 32px; }
   .context-actions { flex-direction: row; }
   .context-actions .action-btn { padding: 6px 8px; font-size: 0.75rem; min-height: 44px; }
   .tutorial-card { top: calc(var(--hud-top-h, 56px) + 6px); font-size: 0.85rem; }
+  /* pause/results fit the short screen: results put the actions beside the score */
+  .overlay-panel { margin-top: 8px; max-height: calc(100% - 16px); padding: 12px 16px; }
+  .overlay-panel h1 { font-size: 1.2rem; margin: 0 0 0.4em; }
+  .results-panel.narrow { max-width: 46rem; display: grid; grid-template-columns: 1fr minmax(190px, 0.8fr); column-gap: 18px; align-items: start; }
+  .results-panel > * { grid-column: 1; }
+  .results-panel > .results-actions { grid-column: 2; grid-row: 1 / span 7; align-self: center; }
+  .results-stars { font-size: 1.5rem; }
+  .results-total { font-size: 1.8rem; margin: 0 0 6px; }
+  .breakdown { margin-bottom: 6px; }
+  .breakdown td { padding: 3px 10px; }
 }
 
 /* ---------- accessibility variants ---------- */
@@ -449,8 +461,15 @@ body.left-handed .context-actions { align-items: flex-start; }
 /* StarHermit toast (invite link copied, signed out). */
 .sh-toast {
   position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%); max-width: min(92vw, 520px); padding: 10px 16px;
+  transform: translateX(-50%); max-width: min(calc(92vw / var(--ui-scale, 1)), 520px); padding: 10px 16px;
   background: var(--panel-solid); color: var(--ink); border: 1px solid var(--accent);
   border-radius: var(--radius); text-align: center; overflow-wrap: anywhere; z-index: 200; pointer-events: none;
 }
 .sh-toast[hidden] { display: none; }
+
+/* Large screens: ui-scale.js sets --ui-scale (exactly 1 up to 1600x1000). Every DOM layer
+   over the full-viewport WebGL canvas zooms by it (vw/vh above are divided by it); the
+   canvas stays unzoomed. World-anchored chips/crosshair divide their projected px by it. */
+#hud-root, #screen-root, #overlay-root, #captions, #crosshair, #fps-meter, .sh-toast {
+  zoom: var(--ui-scale, 1);
+}

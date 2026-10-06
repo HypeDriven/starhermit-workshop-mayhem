@@ -379,7 +379,8 @@ export class InputController {
     if (!el) return;
     const s = this.scene.worldToScreen(pt.x, pt.y, 0.3);
     el.style.display = 'block';
-    el.style.transform = `translate(${s.x - 14}px, ${s.y - 14}px)`;
+    const z = window.UIScale?.value || 1; // s is visual px; #crosshair is zoomed by --ui-scale
+    el.style.transform = `translate(${s.x / z - 14}px, ${s.y / z - 14}px)`;
   }
 
   hideCrosshair() {

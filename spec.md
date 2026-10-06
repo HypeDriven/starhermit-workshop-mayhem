@@ -77,6 +77,7 @@ The Three.js canvas fills the game region but is never the only UI. Menus, text,
 - **Portrait mobile:** top safe-area status bar, square or perspective-fit playfield, bottom thumb-zone action tray, and sheet-based secondary panels. Never place critical controls under browser chrome or display cutouts. The tutorial card sits below the measured objective/status row. The camera aspect is applied as soon as the rig exists (no 16:9 cold start) and again whenever the canvas resizes; fog scales with the framed camera distance so portrait never darkens the workshop.
 - **Landscape mobile:** reserve a narrow status rail; preserve at least 44×44 CSS-pixel targets and 8-pixel separation.
 - React to resize, orientation, device-pixel-ratio, safe-area insets, virtual keyboard, and visibility changes without losing input or restarting the round.
+- **Large screens (above 1600×1000):** the shared `ui-scale.js` sets `--ui-scale` (`min(w/1600, h/1000)`, capped at 2.5); the HUD, screens, overlays, captions, crosshair and toasts zoom by it with viewport units divided by it, while the full-viewport WebGL canvas stays unzoomed. World-anchored trigger chips and the crosshair divide their projected pixels by the scale (chips are clamped on screen), and the measured HUD height is published in layout pixels. Pause and results panels size to their content; on phone landscape the results put the actions beside the score.
 
 ### Screens and overlays
 
