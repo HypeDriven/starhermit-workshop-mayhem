@@ -189,7 +189,7 @@ No module may mutate rules state except through a validated command. Rendering c
 ## 6. StarHermit integration
 
 ### Packaging and launch
-- Ship a browser distribution with `starhermit.txt` at its root, `name=Workshop Mayhem`, and `launch=index.html`. Keep source files, secrets, design documents, and source maps outside the uploaded distribution.
+- Ship a browser distribution with `starhermit.txt` at its root, `name=Workshop Mayhem`, `launch=index.html` and `server=score-script.js`. Keep source files, secrets, design documents, and source maps outside the uploaded distribution.
 - `index.html` loads the canonical `starhermit-sdk.js` (unmodified copy of `tools/starhermit-sdk.js`) and calls `StarHermit.init()` before any module runs. The SDK reads `#game_token=` / `#access_token=`, strips it from the URL, takes the slug from the `game_scope` claim and renews the launch token; tokens never reach local storage. `src/platform/client.js` wraps the SDK.
 - Without a token the game makes no network calls at all (no activity, presence or telemetry; funnel events stay in memory, consent-gated). When renewal is refused it toasts "signed out", re-offers sign-in and keeps playing locally.
 - Hosted, daily boundaries use `GET /api/v1/time` with a round-trip-adjusted offset; failures fall back to the local clock.
@@ -207,7 +207,8 @@ No module may mutate rules state except through a validated command. Rendering c
 
 ### Achievements and leaderboards
 - Declare a small static achievement set: first completion, mechanic mastery, a sustained streak, a difficult content milestone, and an accessibility-neutral long-term goal. Keys are stable, lowercase identifiers; unlocks are idempotent.
-- Provide global and friends-filtered platform boards read with `StarHermit.leaderboard()` (clients never submit; personal bests stay local and inside the cloud-saved doc). The dev-shell script includes ruleset, content version, seed, assists, and duration with every submission it validates; reject impossible or stale-version scores.
+- Signed in, every completed Journey, Daily or Challenge round posts its total through `StarHermit.submitScores` — a practice session whose `score-script.js` (the `server=` platform script; canonical copy in the games repo's `tools/score-script.js`) range-checks it and posts it to the `high-score` board (integer, higher is better, 0–1,000,000). The results overlay shows "Leaderboard rank: #N" (or posted / not posted), localized in the nine locales (`src/ui/platform-strings.js`), then compares the score against that board. Practice, Learn, unfinished rounds and standalone play post nothing.
+- The global and friends-filtered boards read the `high-score` board with `StarHermit.leaderboard()`; personal bests also stay local and inside the cloud-saved doc. The local dev server (`server.js`) validates ruleset, content version, seed, assists and duration on every submission it receives and rejects impossible or stale-version scores (the client does not call it).
 - For globally competitive boards, validate score claims through a lightweight authoritative script using replayable input logs and deterministic seeds. If validation is unavailable, label the board casual and apply plausibility/rate checks.
 
 ### Sessions and transport
@@ -216,7 +217,7 @@ No module may mutate rules state except through a validated command. Rendering c
 - Realtime rooms, peer relay, matchmaking, backfill, and voice are intentionally not used because they add no value to this ruleset.
 
 ### Publishing and operations
-- Keep the authoritative script inside the distribution and declare it with `server=server.js`. Choose a digest-pinned container only if profiling proves the sandbox unsuitable; no initial design here requires one.
+- Keep the platform script inside the distribution and declare it with `server=score-script.js` (`score-script.js` only range-checks and posts scores; `server.js` is the local dev server). Choose a digest-pinned container only if profiling proves the sandbox unsuitable; no initial design here requires one.
 - Define control defaults, achievement metadata, and versioned settings before release. Publish immutable build assets, verify the launch path, maintain migration tests for saves, and expose no secret configuration to the client.
 - Capture anonymous funnel events only for start, tutorial step, round end, retry, settings change, and error category. Avoid raw text, precise personal data, and cross-title tracking.
 

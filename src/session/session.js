@@ -304,8 +304,8 @@ export class SessionController {
     this.platform?.telemetry('round-end', {
       level: r.levelId, mode: r.mode, reason: r.reason, score: r.score.total, stars: r.stars,
     });
-    // personal-best record (local casual board; clients never submit to the
-    // platform leaderboard — boards are script/elo-owned and read-only here)
+    // personal-best record (local casual board; the results screen posts the
+    // same rounds to the platform high-score board when signed in)
     if ((this.mode === 'daily' || this.mode === 'journey' || this.mode === 'challenge') && r.score.primaryComplete) {
       this.platform?.submitScore({
         board: this.mode === 'daily' ? `daily-${this.level.daily?.day}` : 'global',

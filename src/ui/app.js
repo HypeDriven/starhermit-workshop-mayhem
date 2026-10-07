@@ -700,6 +700,7 @@ export class App {
         </table>
         ${r.newAchievements?.length ? `<div class="ach-unlocks">${r.newAchievements.map(a => `<span class="ach-unlock">🏅 ${a.name}</span>`).join('')}</div>` : ''}
         <div id="results-compare" class="compare"></div>
+        <p id="results-lb" class="muted" aria-live="polite" hidden></p>
         <div class="results-actions">
           <button class="mega-btn" data-act="next" autofocus>${won ? nextLabel(g, r) : '🔁 Retry'}</button>
           <button class="action-btn" data-act="retry">🔁 Retry</button>
@@ -707,7 +708,7 @@ export class App {
           <button class="action-btn" data-act="title">🏠 Title</button>
         </div>
       </div>`;
-    this.loadComparison($('#results-compare', root), r);
+    this.postToLeaderboard($('#results-lb', root), $('#results-compare', root), r);
     root.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (!act) return;
@@ -717,6 +718,21 @@ export class App {
       if (act === 'map') g.route(r.mode === 'challenge' ? 'challenge' : 'journey');
       if (act === 'title') g.route('title');
     });
+  }
+
+  // Signed in, completed Journey/Daily/Challenge rounds post their total to
+  // the platform high-score board (then compare against it); otherwise
+  // only the comparison runs.
+  async postToLeaderboard(line, compare, r) {
+    const p = this.game.platform;
+    const ranked = ['daily', 'journey', 'challenge'].includes(r.mode) && r.score.primaryComplete;
+    if (!p.hosted || !ranked) { this.loadComparison(compare, r); return; }
+    line.hidden = false;
+    line.textContent = pt('lbPosting');
+    const res = await p.postScore(r.score.total);
+    line.textContent = !res.posted ? pt('lbNotPosted')
+      : res.rank ? pt('lbRank', { rank: res.rank }) : pt('lbPosted');
+    this.loadComparison(compare, r);
   }
 
   async loadComparison(el, r) {

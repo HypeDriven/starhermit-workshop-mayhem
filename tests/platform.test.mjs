@@ -106,6 +106,7 @@ suite('platform: standalone makes no fetch at all', async () => {
   eq(await p.getSettings(), {}, 'no remote settings');
   eq((await p.cloudLoad('progression')).error, 'not-hosted', 'no cloud');
   await p.fetchBoard('global');
+  eq(await p.postScore(500), { posted: false, rank: null }, 'no score post standalone');
   await p.setControl('undo', ['KeyZ']);
   p.setTelemetryConsent(true);
   p.telemetry('start', { mode: 'boot' });

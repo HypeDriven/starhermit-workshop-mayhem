@@ -2,7 +2,7 @@
 // global `StarHermit`, initialised from index.html before any module runs).
 // Hosted = the SDK holds a launch token: account nickname, cloud save in the
 // `game:<slug>` slot (localStorage stays the offline cache), settings KV,
-// control bindings, invite link and the read-only platform leaderboard.
+// control bindings, invite link and the high-score platform leaderboard.
 // Without a token nothing touches the network. Never persists tokens.
 
 export class Platform {
@@ -92,8 +92,22 @@ export class Platform {
   endActivity() {}
 
   // --- leaderboards ------------------------------------------------------------------
-  // clients can NEVER submit scores to a game leaderboard (script/elo-owned);
-  // personal bests stay local and travel inside the cloud-saved doc
+  // Post a completed Journey/Daily/Challenge round to the high-score board
+  // (score-script.js); resolves { posted, rank } — rank may be null.
+  async postScore(total) {
+    if (!this.hosted || !this.sh) return { posted: false, rank: null };
+    try {
+      const keys = await this.sh.submitScores({ 'high-score': total });
+      if (!keys || keys.indexOf('high-score') < 0) return { posted: false, rank: null };
+      try {
+        const r = await this.sh.leaderboard('high-score', { pageSize: 100 });
+        const me = (r.items || []).find(i => i.userId === this.sh.userId);
+        return { posted: true, rank: me ? me.rank : null };
+      } catch { return { posted: true, rank: null }; }
+    } catch { return { posted: false, rank: null }; }
+  }
+
+  // personal bests also stay local and travel inside the cloud-saved doc
   submitScore(entry) {
     return this.localSubmit(entry);
   }
@@ -129,7 +143,7 @@ export class Platform {
 
   async fetchPlatformBoard({ friends } = {}) {
     try {
-      const r = await this.sh.leaderboard(null, { pageSize: 50, scope: friends ? 'friends' : undefined });
+      const r = await this.sh.leaderboard('high-score', { pageSize: 50, scope: friends ? 'friends' : undefined });
       if (!r.board) return null;
       return await Promise.all((r.items || []).map(async (e, i) => ({
         name: e.nickname || await this.nicknameFor(e.userId ?? e.id),

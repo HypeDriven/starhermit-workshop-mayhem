@@ -1,5 +1,5 @@
 // Workshop Mayhem — strings for the StarHermit buttons and toasts (sign-in,
-// invite, signed out). Like the Graphics panel, they follow the browser
+// invite, signed out, results leaderboard line). Like the Graphics panel, they follow the browser
 // language.
 
 import { pickLocale } from './gfx-panel.js';
@@ -10,6 +10,10 @@ const EN = {
   inviteCopied: 'Invite link copied to the clipboard.',
   inviteFailed: 'Could not copy. Invite link: {link}',
   signedOut: 'Signed out of StarHermit — playing locally.',
+  lbPosting: 'Posting score to the leaderboard…',
+  lbRank: 'Leaderboard rank: #{rank}',
+  lbPosted: 'Score posted to the leaderboard.',
+  lbNotPosted: 'Score not posted to the leaderboard.',
 };
 
 const STRINGS = {
@@ -21,6 +25,10 @@ const STRINGS = {
     inviteCopied: 'Enlace de invitación copiado al portapapeles.',
     inviteFailed: 'No se pudo copiar. Enlace de invitación: {link}',
     signedOut: 'Se cerró la sesión de StarHermit: juegas en modo local.',
+    lbPosting: 'Publicando la puntuación en la clasificación…',
+    lbRank: 'Puesto en la clasificación: #{rank}',
+    lbPosted: 'Puntuación publicada en la clasificación.',
+    lbNotPosted: 'No se pudo publicar la puntuación en la clasificación.',
   },
   'es-ES': {
     signIn: 'Iniciar sesión con StarHermit',
@@ -28,6 +36,10 @@ const STRINGS = {
     inviteCopied: 'Enlace de invitación copiado al portapapeles.',
     inviteFailed: 'No se ha podido copiar. Enlace de invitación: {link}',
     signedOut: 'Se ha cerrado la sesión de StarHermit: juegas en local.',
+    lbPosting: 'Publicando la puntuación en la clasificación…',
+    lbRank: 'Puesto en la clasificación: #{rank}',
+    lbPosted: 'Puntuación publicada en la clasificación.',
+    lbNotPosted: 'No se ha podido publicar la puntuación en la clasificación.',
   },
   'de-DE': {
     signIn: 'Mit StarHermit anmelden',
@@ -35,6 +47,10 @@ const STRINGS = {
     inviteCopied: 'Einladungslink in die Zwischenablage kopiert.',
     inviteFailed: 'Kopieren fehlgeschlagen. Einladungslink: {link}',
     signedOut: 'Von StarHermit abgemeldet – du spielst lokal weiter.',
+    lbPosting: 'Punktzahl wird in die Bestenliste eingetragen…',
+    lbRank: 'Platz in der Bestenliste: #{rank}',
+    lbPosted: 'Punktzahl in die Bestenliste eingetragen.',
+    lbNotPosted: 'Punktzahl wurde nicht in die Bestenliste eingetragen.',
   },
   'fr-FR': {
     signIn: 'Se connecter avec StarHermit',
@@ -42,6 +58,10 @@ const STRINGS = {
     inviteCopied: 'Lien d’invitation copié dans le presse-papiers.',
     inviteFailed: 'Copie impossible. Lien d’invitation : {link}',
     signedOut: 'Déconnecté de StarHermit — vous jouez en local.',
+    lbPosting: 'Envoi du score au classement…',
+    lbRank: 'Rang au classement : #{rank}',
+    lbPosted: 'Score envoyé au classement.',
+    lbNotPosted: 'Score non envoyé au classement.',
   },
   'fr-CA': {
     signIn: 'Se connecter avec StarHermit',
@@ -49,6 +69,10 @@ const STRINGS = {
     inviteCopied: 'Lien d’invitation copié dans le presse-papiers.',
     inviteFailed: 'Impossible de copier. Lien d’invitation : {link}',
     signedOut: 'Déconnecté de StarHermit — vous jouez en mode local.',
+    lbPosting: 'Envoi du pointage au classement…',
+    lbRank: 'Rang au classement : #{rank}',
+    lbPosted: 'Pointage envoyé au classement.',
+    lbNotPosted: 'Pointage non envoyé au classement.',
   },
   'pt-BR': {
     signIn: 'Entrar com StarHermit',
@@ -56,6 +80,10 @@ const STRINGS = {
     inviteCopied: 'Link de convite copiado para a área de transferência.',
     inviteFailed: 'Não foi possível copiar. Link de convite: {link}',
     signedOut: 'Você saiu do StarHermit — jogando localmente.',
+    lbPosting: 'Enviando pontuação para o placar…',
+    lbRank: 'Posição no placar: #{rank}',
+    lbPosted: 'Pontuação enviada para o placar.',
+    lbNotPosted: 'A pontuação não foi enviada para o placar.',
   },
   'it-IT': {
     signIn: 'Accedi con StarHermit',
@@ -63,6 +91,10 @@ const STRINGS = {
     inviteCopied: 'Link di invito copiato negli appunti.',
     inviteFailed: 'Impossibile copiare. Link di invito: {link}',
     signedOut: 'Disconnesso da StarHermit: giochi in locale.',
+    lbPosting: 'Invio del punteggio alla classifica…',
+    lbRank: 'Posizione in classifica: #{rank}',
+    lbPosted: 'Punteggio inviato alla classifica.',
+    lbNotPosted: 'Punteggio non inviato alla classifica.',
   },
 };
 
