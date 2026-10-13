@@ -55,7 +55,7 @@ export class AudioSystem {
   playSample(name, bus = 'effects', volume = 1) {
     const buf = this.samples.get(name);
     if (!buf || !this.started) return false;
-    const src = this.ctx.createBufferSource();
+    const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createBufferSource(), bus) : this.ctx.createBufferSource());
     src.buffer = buf;
     const g = this.ctx.createGain();
     g.gain.value = volume;
@@ -76,7 +76,7 @@ export class AudioSystem {
         const g = this.ctx.createGain();
         g.gain.value = this.volumes[bus];
         g.connect(this.master);
-        this.buses[bus] = g;
+        this.buses[bus] = (globalThis.GameOptions ? globalThis.GameOptions.tagBus(g, bus) : g);
       }
       this.applyVolumes();
     }
@@ -122,7 +122,7 @@ export class AudioSystem {
 
   osc(type, freq, t0, dur, bus, peak = 0.2, bend = null) {
     if (!this.started) return;
-    const o = this.ctx.createOscillator();
+    const o = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createOscillator(), bus) : this.ctx.createOscillator());
     const g = this.ctx.createGain();
     o.type = type;
     o.frequency.setValueAtTime(freq, t0);
@@ -142,7 +142,7 @@ export class AudioSystem {
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       this._noiseBuf = buf;
     }
-    const src = this.ctx.createBufferSource();
+    const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createBufferSource(), bus) : this.ctx.createBufferSource());
     src.buffer = this._noiseBuf;
     src.loop = true;
     const f = this.ctx.createBiquadFilter();
@@ -373,7 +373,7 @@ export class AudioSystem {
   }
 
   loopNoise(freq, lfoRate, peak, type) {
-    const src = this.ctx.createBufferSource();
+    const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createBufferSource(), null) : this.ctx.createBufferSource());
     if (!this._noiseBuf) {
       const buf = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
       const d = buf.getChannelData(0);
@@ -386,7 +386,7 @@ export class AudioSystem {
     f.type = type; f.frequency.value = freq;
     const g = this.ctx.createGain();
     g.gain.value = peak;
-    const lfo = this.ctx.createOscillator();
+    const lfo = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(this.ctx.createOscillator(), null) : this.ctx.createOscillator());
     lfo.frequency.value = lfoRate * 0.1;
     const lfoG = this.ctx.createGain();
     lfoG.gain.value = peak * 0.5;

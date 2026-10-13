@@ -376,7 +376,7 @@ export class GameScene {
     }
     if (this.composer) {
       try {
-        this.composer.render();
+        (globalThis.GameOptions ? globalThis.GameOptions.draw(this.composer.renderer, () => this.composer.render()) : this.composer.render());
         return;
       } catch {
         // post is an enhancement: fall back to direct rendering for good
@@ -384,7 +384,7 @@ export class GameScene {
         this.composer = null;
       }
     }
-    this.renderer.render(this.scene, this.camera);
+    (globalThis.GameOptions ? globalThis.GameOptions.draw(this.renderer, () => this.renderer.render(this.scene, this.camera)) : this.renderer.render(this.scene, this.camera));
   }
 
   // --- graphics settings -----------------------------------------------------------
