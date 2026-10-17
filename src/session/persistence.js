@@ -1,7 +1,7 @@
 // Versioned, checksummed persistence (spec §6 cloud-save document shape).
-// Local-first with a pluggable remote adapter; conflict helpers preserve both
-// snapshots so the caller can pick — the platform integration prefers the
-// remote copy, keeping localStorage as the offline cache.
+// Local-first; the StarHermit cloud slot mirrors the progression doc and the
+// two are merged (mergeProgression) on boot and on save conflicts, with
+// localStorage as the offline cache.
 
 const STORE_PREFIX = 'workshop-mayhem:';
 
@@ -102,31 +102,38 @@ export function clearLocal(kind) {
   storage().removeItem(STORE_PREFIX + kind);
 }
 
-// --- cloud conflict resolution ------------------------------------------------
-// ancestry: a doc is a strict descendant when its updated timestamp is newer
-// AND it shares the other's lineage id; otherwise both are preserved for the
-// player to pick (spec §6 conflict handling).
-export function resolveConflict(localDoc, remoteDoc) {
-  if (!remoteDoc) return { winner: 'local', doc: localDoc, conflict: false };
-  if (!localDoc) return { winner: 'remote', doc: remoteDoc, conflict: false };
-  const l = unwrapDoc(rawKind(localDoc), localDoc);
-  const r = unwrapDoc(rawKind(remoteDoc), remoteDoc);
-  if (JSON.stringify(l) === JSON.stringify(r)) return { winner: 'local', doc: localDoc, conflict: false };
-  // heuristic descendants: totalStars/plays supersets in progression docs
-  const la = scoreOf(l), ra = scoreOf(r);
-  if (la.every((v, i) => v >= ra[i])) return { winner: 'local', doc: localDoc, conflict: false };
-  if (ra.every((v, i) => v >= la[i])) return { winner: 'remote', doc: remoteDoc, conflict: false };
-  return { winner: null, doc: null, conflict: true, local: localDoc, remote: remoteDoc };
-}
-
-function rawKind(doc) { return doc.kind || 'progression'; }
-
-function scoreOf(d) {
-  return [
-    d.totalStars ?? 0, d.xp ?? 0,
-    Object.keys(d.stars || {}).length,
-    d.totals?.completions ?? 0,
-  ];
+// --- cloud merge ----------------------------------------------------------------
+// Two devices (or a device and the cloud slot) never lose each other's
+// progress: per-level stars and best scores keep the better entry, XP and
+// lifetime totals keep the larger count, the Journey frontier keeps the
+// furthest stage. Cosmetic choices are a preference, so `local` keeps its own.
+export function mergeProgression(local, remote) {
+  const a = { ...structuredClone(DEFAULT_PROGRESSION), ...(local || {}) };
+  const b = { ...structuredClone(DEFAULT_PROGRESSION), ...(remote || {}) };
+  const stars = { ...b.stars };
+  for (const [id, n] of Object.entries(a.stars || {})) stars[id] = Math.max(stars[id] || 0, n || 0);
+  const bestScores = { ...b.bestScores };
+  for (const [id, rec] of Object.entries(a.bestScores || {})) {
+    const other = bestScores[id];
+    if (!other || rec.total > other.total || (rec.total === other.total && (rec.ticks ?? 0) < (other.ticks ?? 0))) bestScores[id] = rec;
+  }
+  const totals = {};
+  for (const k of new Set([...Object.keys(a.totals || {}), ...Object.keys(b.totals || {})])) {
+    totals[k] = Math.max(a.totals?.[k] ?? 0, b.totals?.[k] ?? 0);
+  }
+  const rank = (id) => { const m = /^j(\d+)$/.exec(id || ''); return m ? parseInt(m[1], 10) : 0; };
+  const fa = a.journey?.furthest, fb = b.journey?.furthest;
+  return {
+    ...b,
+    ...a,
+    stars,
+    bestScores,
+    totalStars: Object.values(stars).reduce((sum, n) => sum + (n || 0), 0),
+    xp: Math.max(a.xp ?? 0, b.xp ?? 0),
+    totals,
+    cosmetics: { ...b.cosmetics, ...a.cosmetics },
+    journey: { ...b.journey, ...a.journey, furthest: rank(fb) > rank(fa) ? fb : (fa ?? fb ?? 'j01') },
+  };
 }
 
 // --- defaults ------------------------------------------------------------------

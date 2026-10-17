@@ -1,5 +1,7 @@
 // Screen manager + all screens/overlays (spec §3 screens). Semantic HTML,
 // focus management with restoration, live announcements, responsive rails.
+// Every visible string comes from i18n.js; relocalize() re-renders the open
+// screen/overlay in place when the language changes.
 import { JOURNEY, CHALLENGES } from '../content/stages.js';
 import { TUTORIALS } from '../content/tutorials.js';
 import { THEMES, THEME_ORDER, themeUnlocked } from '../content/themes.js';
@@ -7,19 +9,21 @@ import { ACHIEVEMENTS } from '../content/achievements.js';
 import { TOOLS } from '../rules/engine.js';
 import { BINDING_LABELS, bindingText } from './input.js';
 import { platformStrings } from './platform-strings.js';
-
-const pt = platformStrings();
 import { objectiveText } from './a11y.js';
 import { graphicsCardHtml, bindGraphicsCard } from './gfx-panel.js';
+import {
+  t, applyDom, locale, levelName, levelIntro, lessonTitle, toolName, toolBlurb,
+  themeName, themeBlurb, achName, achDesc, chapterName, bindingLabel, reasonText,
+} from './i18n.js';
 
+const pt = (key, vars) => platformStrings()(key, vars);
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const syncLabel = (s) => ({
-  offline: 'Offline — progress is cached on this device.',
-  saving: 'Syncing progress to your account…',
-  synced: 'Progress synced to your account.',
-  error: 'Sync hiccup — will retry automatically.',
-}[s] ?? '');
+const syncLabel = (s) => (['offline', 'saving', 'synced', 'error'].includes(s) ? t(`sync_${s}`) : '');
+const stars = (n) => `${'★'.repeat(n)}${'☆'.repeat(3 - n)}`;
+const backRow = () => `<div class="row"><button class="action-btn" data-act="back">${esc(t('back'))}</button></div>`;
+// stored default guest name shows in the player's language
+const shownName = (p) => (p.guest && p.displayName === 'Guest Inventor' ? t('guestName') : p.displayName);
 
 export class App {
   constructor(game) {
@@ -27,6 +31,7 @@ export class App {
     this.screenRoot = document.getElementById('screen-root');
     this.overlayRoot = document.getElementById('overlay-root');
     this.current = null;
+    this.currentParams = {};
     this.overlay = null;
     this.lastFocus = null;
     // soft tick when hovering/focusing interactive elements (delegated)
@@ -54,15 +59,26 @@ export class App {
 
   announce(text, priority) { this.game.announcer.say(text, priority); }
 
-  show(name, params = {}) {
+  show(name, params = {}, { relocalize = false } = {}) {
+    const wasHidden = this.screenRoot.classList.contains('hidden');
+    const focusKey = relocalize ? focusSelector(document.activeElement, this.screenRoot) : null;
     this.current = name;
-    this.overlayRoot.classList.add('hidden');
-    this.overlay = null;
+    this.currentParams = params;
+    if (!relocalize) {
+      this.overlayRoot.classList.add('hidden');
+      this.overlay = null;
+    }
     const fn = this[`screen_${name}`];
     const root = this.freshRoot('screenRoot');
     root.innerHTML = '';
     root.className = `screen-root screen-${name}`;
     fn.call(this, root, params);
+    if (relocalize) {
+      // a language change re-renders in place: same visibility, same focus, no announcement
+      if (wasHidden) root.classList.add('hidden');
+      if (focusKey) $(focusKey, root)?.focus?.();
+      return;
+    }
     root.classList.remove('hidden');
     const h = this.screenRoot.querySelector('h1, h2, [autofocus], button');
     (this.screenRoot.querySelector('[autofocus]') || h)?.focus?.();
@@ -92,6 +108,16 @@ export class App {
     this.lastFocus?.focus?.();
   }
 
+  // Language changed: re-render the current screen and overlay in place.
+  // Settings relabels instead (its shared Sound/Language/Report sections and
+  // the language select the player is using must stay put).
+  relocalize() {
+    if (this.current === 'settings') this.relabelSettings();
+    else if (this.current) this.show(this.current, this.currentParams, { relocalize: true });
+    if (this.overlay === 'pause') applyDom(this.overlayRoot);
+    if (this.overlay === 'results' && this.resultsCtx) this.renderResults(this.overlayRoot);
+  }
+
   // ============================ SCREENS =====================================
 
   screen_loading(root, { progress = 0, groups = [] }) {
@@ -102,7 +128,7 @@ export class App {
         <div class="load-bar" role="progressbar" aria-valuenow="${Math.round(progress * 100)}" aria-valuemin="0" aria-valuemax="100">
           <div style="width:${progress * 100}%"></div>
         </div>
-        <ul class="load-groups">${groups.map(g => `<li class="${g.done ? 'done' : ''}">${g.label}</li>`).join('')}</ul>
+        <ul class="load-groups">${groups.map(g => `<li class="${g.done ? 'done' : ''}">${esc(t(g.label))}</li>`).join('')}</ul>
       </div>`;
   }
 
@@ -113,33 +139,33 @@ export class App {
     root.innerHTML = `
       <div class="title-hero">
         <h1 class="game-logo"><span class="logo-gear">⚙</span> Workshop Mayhem</h1>
-        <p class="tagline">Whimsical tools. One resilient dummy. Pure physics chaos.</p>
+        <p class="tagline">${esc(t('tagline'))}</p>
         <div class="title-actions">
-          <button class="mega-btn" data-act="play" autofocus>▶ Play</button>
+          <button class="mega-btn" data-act="play" autofocus>${esc(t('play'))}</button>
           <div class="title-chips">
             <button class="chip" data-act="daily">
-              <strong>Daily Challenge</strong>
-              <span>${day ? `Day ${day.label}` : 'One shared puzzle'}</span>
+              <strong>${esc(t('dailyChallenge'))}</strong>
+              <span>${esc(day ? t('dailyDay', { label: day.label }) : t('dailyShared'))}</span>
             </button>
             <button class="chip" data-act="journey">
-              <strong>Journey</strong>
-              <span>${prog.totalStars}★ · stage ${prog.journey?.furthest ?? 'j01'}</span>
+              <strong>${esc(t('journey'))}</strong>
+              <span>${esc(t('journeyChip', { stars: prog.totalStars, stage: prog.journey?.furthest ?? 'j01' }))}</span>
             </button>
             <button class="chip" data-act="profile">
-              <strong>${esc(g.profile.displayName)}</strong>
-              <span>${g.profile.guest ? 'Guest — tap to save progress' : 'Profile'}</span>
+              <strong>${esc(shownName(g.profile))}</strong>
+              <span>${esc(g.profile.guest ? t('guestChip') : t('profile'))}</span>
             </button>
           </div>
         </div>
-        <nav class="title-links" aria-label="More">
-          <button data-act="learn">Learn</button>
-          <button data-act="practice">Practice</button>
-          <button data-act="challenge">Challenge</button>
-          <button data-act="boards">Leaderboards</button>
-          <button data-act="achievements">Achievements</button>
-          <button data-act="cosmetics">Workshop&nbsp;&amp;&nbsp;Style</button>
-          <button data-act="help">Help</button>
-          <button data-act="settings">Settings</button>
+        <nav class="title-links" aria-label="${esc(t('moreNav'))}">
+          <button data-act="learn">${esc(t('learn'))}</button>
+          <button data-act="practice">${esc(t('practice'))}</button>
+          <button data-act="challenge">${esc(t('challenge'))}</button>
+          <button data-act="boards">${esc(t('leaderboards'))}</button>
+          <button data-act="achievements">${esc(t('achievements'))}</button>
+          <button data-act="cosmetics">${esc(t('workshopStyle'))}</button>
+          <button data-act="help">${esc(t('help'))}</button>
+          <button data-act="settings">${esc(t('settings'))}</button>
           ${g.platform.canSignIn() ? `<button data-act="signin" id="btn-signin">${esc(pt('signIn'))}</button>` : ''}
           ${g.platform.hosted && g.platform.inviteLink() ? `<button data-act="invite" id="btn-invite">${esc(pt('invite'))}</button>` : ''}
         </nav>
@@ -156,39 +182,38 @@ export class App {
 
   screen_profile(root) {
     const g = this.game;
+    const p = g.profile;
     root.innerHTML = `
       <div class="panel narrow">
-        <h1>Profile</h1>
+        <h1>${esc(t('profile'))}</h1>
         <div class="profile-card card">
-          <div class="avatar" aria-hidden="true">${g.profile.guest ? '🧰' : '🧑‍🔧'}</div>
+          <div class="avatar" aria-hidden="true">${p.guest ? '🧰' : '🧑‍🔧'}</div>
           <div>
-            <h2>${esc(g.profile.displayName)}</h2>
-            <p>${g.profile.guest ? 'Playing as a guest. Progress lives on this device.' : 'Signed in — progress syncs to your account.'}</p>
+            <h2>${esc(shownName(p))}</h2>
+            <p>${esc(p.guest ? t('profileGuest') : t('profileSignedIn'))}</p>
           </div>
         </div>
-        ${g.profile.guest ? `
+        ${p.guest ? `
           <form id="name-form" class="form-row">
-            <label for="display-name">Display name</label>
-            <input id="display-name" maxlength="24" value="${esc(g.profile.displayName)}" />
-            <button class="action-btn" type="submit">Save</button>
+            <label for="display-name">${esc(t('displayName'))}</label>
+            <input id="display-name" maxlength="24" value="${esc(shownName(p))}" />
+            <button class="action-btn" type="submit">${esc(t('save'))}</button>
           </form>
           ${g.platform.canSignIn() ? `<button class="action-btn" data-act="signin">${esc(pt('signIn'))}</button>` : ''}
-          <p class="muted">Local guests keep full progress, boards and cosmetics on this device.</p>
-        ` : `<p class="muted">Signed in as ${esc(g.profile.name)}.</p>
-          <p class="muted">${syncLabel(g.platform.syncStatus)}</p>
+          <p class="muted">${esc(t('guestNote'))}</p>
+        ` : `<p class="muted">${esc(t('signedInAs', { name: p.name }))}</p>
+          <p class="muted">${esc(syncLabel(g.platform.syncStatus))}</p>
           ${g.platform.hosted && g.platform.inviteLink() ? `<button class="action-btn" data-act="invite">${esc(pt('invite'))}</button>` : ''}`}
         <fieldset class="form-row">
-          <legend>Profile privacy</legend>
-          <label><input type="radio" name="privacy" value="public" ${g.profile.privacy === 'public' ? 'checked' : ''} /> Public boards</label>
-          <label><input type="radio" name="privacy" value="friends" ${g.profile.privacy === 'friends' ? 'checked' : ''} /> Friends only</label>
-          <label><input type="radio" name="privacy" value="hidden" ${g.profile.privacy === 'hidden' ? 'checked' : ''} /> Hidden</label>
+          <legend>${esc(t('privacyLegend'))}</legend>
+          ${['public', 'friends', 'hidden'].map(v => `<label><input type="radio" name="privacy" value="${v}" ${p.privacy === v ? 'checked' : ''} /> ${esc(t(`privacy_${v}`))}</label>`).join('')}
         </fieldset>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     $('#name-form', root)?.addEventListener('submit', (e) => {
       e.preventDefault();
       g.setDisplayName($('#display-name', root).value.trim() || 'Guest Inventor');
-      this.announce('Display name saved');
+      this.announce(t('nameSaved'));
     });
     root.addEventListener('change', (e) => {
       if (e.target.name === 'privacy') g.setPrivacy(e.target.value);
@@ -200,25 +225,25 @@ export class App {
 
   screen_modes(root) {
     const cards = [
-      ['journey', '🗺️', 'Journey', `${JOURNEY.length} authored stages across six chapters. Earn stars, unlock mastery stages.`],
-      ['daily', '📅', 'Daily Challenge', 'One shared seed for everyone today. Compare scores on the daily board.'],
-      ['learn', '🎓', 'Learn', 'Five hands-on lessons. One rule at a time — you do the doing.'],
-      ['practice', '🧪', 'Practice', 'Any stage, your rules: undo, restarts, no pressure, unranked.'],
-      ['challenge', '⏱️', 'Challenge', 'Constrained goals: move limits, speed targets, restricted tools.'],
-      ['boards', '🏆', 'Score Chase', 'Global and friends boards for every stage. Chase the crown.'],
+      ['journey', '🗺️', t('journey'), t('modeJourney', { n: JOURNEY.length })],
+      ['daily', '📅', t('dailyChallenge'), t('modeDaily')],
+      ['learn', '🎓', t('learn'), t('modeLearn')],
+      ['practice', '🧪', t('practice'), t('modePractice')],
+      ['challenge', '⏱️', t('challenge'), t('modeChallenge')],
+      ['boards', '🏆', t('scoreChase'), t('modeBoards')],
     ];
     root.innerHTML = `
       <div class="panel">
-        <h1>Choose a mode</h1>
+        <h1>${esc(t('chooseMode'))}</h1>
         <div class="mode-grid">
           ${cards.map(([id, icon, name, desc]) => `
             <button class="mode-card card" data-act="${id}">
               <span class="mode-icon">${icon}</span>
-              <strong>${name}</strong>
-              <span>${desc}</span>
+              <strong>${esc(name)}</strong>
+              <span>${esc(desc)}</span>
             </button>`).join('')}
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     root.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
@@ -236,36 +261,33 @@ export class App {
       if (!chapters.has(lv.chapter)) chapters.set(lv.chapter, []);
       chapters.get(lv.chapter).push(lv);
     }
-    const chapterNames = {
-      1: 'First Sparks', 2: 'Moving Air', 3: 'Heavy Metal',
-      4: 'Attractive Forces', 5: 'Grand Mayhem', 6: 'Inventor’s Gauntlet',
-    };
     let unlocked = true; // first stage unlocked; each stage unlocks the next
     root.innerHTML = `
       <div class="panel wide">
-        <h1>Journey</h1>
-        <p class="muted">${prog.totalStars} stars earned · ${Object.values(prog.stars).filter(s => s > 0).length}/${JOURNEY.length} stages complete</p>
+        <h1>${esc(t('journey'))}</h1>
+        <p class="muted">${esc(t('journeyStats', { stars: prog.totalStars, done: Object.values(prog.stars).filter(s => s > 0).length, total: JOURNEY.length }))}</p>
         <div class="journey-map">
           ${[...chapters.entries()].map(([ch, levels]) => `
             <section class="chapter">
-              <h2>Chapter ${ch}: ${chapterNames[ch]}</h2>
+              <h2>${esc(t('chapterTitle', { n: ch, name: chapterName(ch) }))}</h2>
               <div class="stage-row">
                 ${levels.map((lv) => {
-                  const stars = prog.stars[lv.id] || 0;
+                  const n = prog.stars[lv.id] || 0;
                   const open = unlocked;
-                  if ((prog.stars[lv.id] || 0) === 0) unlocked = false;
-                  return `<button class="stage-node ${stars ? 'done' : ''} ${open ? '' : 'locked'}"
+                  if (n === 0) unlocked = false;
+                  const name = levelName(lv);
+                  return `<button class="stage-node ${n ? 'done' : ''} ${open ? '' : 'locked'}"
                       data-level="${lv.id}" ${open ? '' : 'disabled'}
-                      aria-label="${esc(lv.name)}, ${stars} stars${open ? '' : ', locked'}">
+                      aria-label="${esc(t(open ? 'stageAria' : 'stageAriaLocked', { name, stars: n }))}">
                     <span class="stage-id">${lv.id.replace('j', '')}</span>
-                    <span class="stage-stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span>
-                    <span class="stage-name">${/mastery/i.test(lv.name) ? '👑 ' : ''}${esc(lv.name)}</span>
+                    <span class="stage-stars">${stars(n)}</span>
+                    <span class="stage-name">${/mastery/i.test(lv.name) ? '👑 ' : ''}${esc(name)}</span>
                   </button>`;
                 }).join('')}
               </div>
             </section>`).join('')}
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     root.addEventListener('click', (e) => {
       const id = e.target.closest('[data-level]')?.dataset.level;
@@ -278,18 +300,18 @@ export class App {
     const g = this.game;
     root.innerHTML = `
       <div class="panel">
-        <h1>Learn the tools</h1>
-        <p class="muted">Short interactive lessons. Each introduces exactly one idea — and you perform it.</p>
+        <h1>${esc(t('learnTitle'))}</h1>
+        <p class="muted">${esc(t('learnIntro'))}</p>
         <div class="mode-grid">
-          ${TUTORIALS.map((t, i) => `
-            <button class="mode-card card" data-level="${t.id}">
+          ${TUTORIALS.map((lv, i) => `
+            <button class="mode-card card" data-level="${lv.id}">
               <span class="mode-icon">${['🥊', '🚀', '🌀', '🏋️', '🧲'][i]}</span>
-              <strong>${t.name.replace('Lesson: ', '')}</strong>
-              <span>${t.intro}</span>
-              ${g.settings.tutorialDone.includes(t.id) ? '<em>✓ completed</em>' : ''}
+              <strong>${esc(lessonTitle(lv))}</strong>
+              <span>${esc(levelIntro(lv))}</span>
+              ${g.settings.tutorialDone.includes(lv.id) ? `<em>${esc(t('lessonDone'))}</em>` : ''}
             </button>`).join('')}
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     root.addEventListener('click', (e) => {
       const id = e.target.closest('[data-level]')?.dataset.level;
@@ -298,29 +320,36 @@ export class App {
     });
   }
 
-  screen_practice(root) {
+  screen_practice(root, params = {}) {
     const g = this.game;
-    const options = [...JOURNEY].map(l => `<option value="${l.id}">${l.id} — ${l.name}</option>`).join('');
+    const sel = params.levelId ?? JOURNEY[0].id;
+    const diff = params.difficulty ?? 'normal';
+    const undo = params.undo ?? g.settings.rules.undoInPractice;
+    const options = JOURNEY.map(l => `<option value="${l.id}" ${l.id === sel ? 'selected' : ''}>${l.id} — ${esc(levelName(l))}</option>`).join('');
     root.innerHTML = `
       <div class="panel narrow">
-        <h1>Practice</h1>
+        <h1>${esc(t('practice'))}</h1>
         <div class="card setup-card">
           <div class="form-row">
-            <label for="practice-level">Stage</label>
+            <label for="practice-level">${esc(t('stage'))}</label>
             <select id="practice-level">${options}</select>
           </div>
           <fieldset class="form-row">
-            <legend>Difficulty</legend>
-            <label><input type="radio" name="diff" value="easy" /> Easy — extra tool stock</label>
-            <label><input type="radio" name="diff" value="normal" checked /> Normal — as authored</label>
-            <label><input type="radio" name="diff" value="hard" /> Hard — one less of each tool</label>
+            <legend>${esc(t('difficulty'))}</legend>
+            ${['easy', 'normal', 'hard'].map(d => `<label><input type="radio" name="diff" value="${d}" ${d === diff ? 'checked' : ''} /> ${esc(t(`diff_${d}`))}</label>`).join('')}
           </fieldset>
-          <label class="form-row"><input type="checkbox" id="practice-undo" ${g.settings.rules.undoInPractice ? 'checked' : ''} /> Allow undo (practice always unranked)</label>
-          <p class="muted">Practice never affects ratings or boards. Restarts and undos are free.</p>
-          <button class="mega-btn" data-act="start">Start practicing</button>
+          <label class="form-row"><input type="checkbox" id="practice-undo" ${undo ? 'checked' : ''} /> ${esc(t('allowUndo'))}</label>
+          <p class="muted">${esc(t('practiceNote'))}</p>
+          <button class="mega-btn" data-act="start">${esc(t('startPractice'))}</button>
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
+    // remember the choices so a language change keeps them
+    root.addEventListener('change', () => {
+      params.levelId = $('#practice-level', root).value;
+      params.difficulty = root.querySelector('[name=diff]:checked').value;
+      params.undo = $('#practice-undo', root).checked;
+    });
     root.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'start') {
@@ -338,23 +367,23 @@ export class App {
     const constraintText = (lv) => {
       const c = lv.challenge || {};
       const bits = [];
-      if (c.moveLimit) bits.push(`${c.moveLimit} move${c.moveLimit > 1 ? 's' : ''} max`);
-      if (c.timeLimitTicks) bits.push(`${(c.timeLimitTicks / 120).toFixed(0)}s limit`);
-      return bits.join(' · ') || 'Standard rules';
+      if (c.moveLimit) bits.push(c.moveLimit > 1 ? t('movesMax', { n: c.moveLimit }) : t('movesMax1'));
+      if (c.timeLimitTicks) bits.push(t('timeLimit', { n: (c.timeLimitTicks / 120).toFixed(0) }));
+      return bits.join(' · ') || t('standardRules');
     };
     root.innerHTML = `
       <div class="panel">
-        <h1>Challenge</h1>
+        <h1>${esc(t('challenge'))}</h1>
         <div class="mode-grid">
           ${CHALLENGES.map(lv => `
             <button class="mode-card card" data-level="${lv.id}">
-              <strong>${lv.name}</strong>
-              <span>${lv.intro}</span>
-              <em>${constraintText(lv)}</em>
-              <span class="stage-stars">${'★'.repeat(g.progression.stars[lv.id] || 0)}${'☆'.repeat(3 - (g.progression.stars[lv.id] || 0))}</span>
+              <strong>${esc(levelName(lv))}</strong>
+              <span>${esc(levelIntro(lv))}</span>
+              <em>${esc(constraintText(lv))}</em>
+              <span class="stage-stars">${stars(g.progression.stars[lv.id] || 0)}</span>
             </button>`).join('')}
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     root.addEventListener('click', (e) => {
       const id = e.target.closest('[data-level]')?.dataset.level;
@@ -367,24 +396,25 @@ export class App {
     const g = this.game;
     const lv = g.dailyLevel;
     const { main, bonus } = objectiveText(lv);
+    const toolList = Object.entries(lv.tools).filter(([, v]) => v > 0).map(([k, v]) => t('toolCount', { n: v, tool: toolName(k) })).join(', ');
     root.innerHTML = `
       <div class="panel narrow">
-        <h1>Daily Challenge</h1>
+        <h1>${esc(t('dailyChallenge'))}</h1>
         <div class="card setup-card">
-          <h2>${lv.name}</h2>
-          <p>🎯 ${main}</p>
-          ${bonus.map(b => `<p>✦ ${b}</p>`).join('')}
+          <h2>${esc(levelName(lv))}</h2>
+          <p>🎯 ${esc(main)}</p>
+          ${bonus.map(b => `<p>✦ ${esc(b)}</p>`).join('')}
           <dl class="facts">
-            <div><dt>Ruleset</dt><dd>v${lv.daily.ruleset}${lv.daily.excluded ? ' (excluded from ranking)' : ''}</dd></div>
-            <div><dt>Seed</dt><dd>${lv.seed}</dd></div>
-            <div><dt>Tools</dt><dd>${Object.entries(lv.tools).filter(([, v]) => v > 0).map(([k, v]) => `${v}× ${TOOLS[k].name}`).join(', ')}</dd></div>
-            <div><dt>Expected</dt><dd>1–3 minutes</dd></div>
-            <div><dt>Ranked</dt><dd>Daily board${g.platform.hosted ? '' : ' (casual locally)'}</dd></div>
+            <div><dt>${esc(t('ruleset'))}</dt><dd>${esc(lv.daily.excluded ? t('rulesetExcluded', { v: lv.daily.ruleset }) : `v${lv.daily.ruleset}`)}</dd></div>
+            <div><dt>${esc(t('seed'))}</dt><dd>${lv.seed}</dd></div>
+            <div><dt>${esc(t('toolsLabel'))}</dt><dd>${esc(toolList)}</dd></div>
+            <div><dt>${esc(t('expected'))}</dt><dd>${esc(t('expectedTime'))}</dd></div>
+            <div><dt>${esc(t('ranked'))}</dt><dd>${esc(g.platform.hosted ? t('dailyBoard') : t('dailyBoardCasual'))}</dd></div>
           </dl>
-          <button class="mega-btn" data-act="start" autofocus>Take today's shot</button>
-          <button class="action-btn" data-act="board">View daily board</button>
+          <button class="mega-btn" data-act="start" autofocus>${esc(t('takeShot'))}</button>
+          <button class="action-btn" data-act="board">${esc(t('viewDailyBoard'))}</button>
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     root.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
@@ -394,42 +424,44 @@ export class App {
     });
   }
 
-  screen_boards(root, { board = null } = {}) {
+  screen_boards(root, params = {}) {
     const g = this.game;
-    const boardId = board ?? 'global';
+    const boardId = params.board ?? 'global';
+    const today = `daily-${g.platform.utcDay()}`;
+    const tab = (id, key, on) => `<button role="tab" data-board="${id}" aria-selected="${on}" class="${on ? 'active' : ''}">${esc(t(key))}</button>`;
     root.innerHTML = `
       <div class="panel wide">
-        <h1>Leaderboards</h1>
+        <h1>${esc(t('leaderboards'))}</h1>
         <div class="tabs" role="tablist">
-          <button role="tab" data-board="global" aria-selected="${boardId === 'global'}" class="${boardId === 'global' ? 'active' : ''}">Global</button>
-          <button role="tab" data-board="friends" aria-selected="${boardId === 'friends'}" class="${boardId === 'friends' ? 'active' : ''}">Friends</button>
-          <button role="tab" data-board="daily-${g.platform.utcDay()}" aria-selected="${boardId.startsWith('daily')}" class="${boardId.startsWith('daily') ? 'active' : ''}">Today</button>
+          ${tab('global', 'tab_global', boardId === 'global')}
+          ${tab('friends', 'tab_friends', boardId === 'friends')}
+          ${tab(today, 'tab_today', boardId.startsWith('daily'))}
         </div>
-        <div id="board-body" aria-live="polite"><p class="muted">Loading…</p></div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        <div id="board-body" aria-live="polite"><p class="muted">${esc(t('loadingText'))}</p></div>
+        ${backRow()}
       </div>`;
     let loadToken = 0;
     const load = async (b) => {
       const body = $('#board-body', root);
       const token = ++loadToken;
-      body.innerHTML = '<p class="muted">Loading…</p>';
+      body.innerHTML = `<p class="muted">${esc(t('loadingText'))}</p>`;
       const actual = b === 'friends' ? 'global' : b;
       const r = await g.platform.fetchBoard(actual, { friends: b === 'friends' });
       if (token !== loadToken) return;   // a newer tab click already won
       if (!r.rows.length) {
-        body.innerHTML = `<p class="muted">No scores yet${r.casual ? ' on this device' : ''}. Be the first!</p>`;
+        body.innerHTML = `<p class="muted">${esc(t(r.casual ? 'noScoresDevice' : 'noScores'))}</p>`;
         return;
       }
       body.innerHTML = `
-        ${r.casual ? '<p class="muted">Casual local board — hosted boards validate every score by replay.</p>' : ''}
+        ${r.casual ? `<p class="muted">${esc(t('casualBoard'))}</p>` : ''}
         <table class="board-table">
-          <thead><tr><th>#</th><th>Player</th><th>Level</th><th>Score</th><th>Time</th></tr></thead>
+          <thead><tr><th>#</th><th>${esc(t('th_player'))}</th><th>${esc(t('th_level'))}</th><th>${esc(t('th_score'))}</th><th>${esc(t('th_time'))}</th></tr></thead>
           <tbody>
             ${r.rows.slice(0, 25).map((row, i) => `
               <tr>
-                <td>${i + 1}</td><td>${esc(row.name ?? 'Player')}</td>
-                <td>${row.levelId ?? '—'}</td><td>${row.score}</td>
-                <td>${Math.floor((row.ticks ?? 0) / 120)}s</td>
+                <td>${i + 1}</td><td>${esc(row.name === 'You' ? t('you') : (row.name ?? t('player')))}</td>
+                <td>${esc(row.levelId ?? '—')}</td><td>${row.score}</td>
+                <td>${esc(t('seconds', { n: Math.floor((row.ticks ?? 0) / 120) }))}</td>
               </tr>`).join('')}
           </tbody>
         </table>`;
@@ -439,10 +471,11 @@ export class App {
       const b = e.target.closest('[data-board]')?.dataset.board;
       if (b) {
         g.audio.event({ t: 'ui-tab-switch' });
-        root.querySelectorAll('[role=tab]').forEach(t => {
-          const on = t.dataset.board === b;
-          t.classList.toggle('active', on);
-          t.setAttribute('aria-selected', String(on));
+        params.board = b;
+        root.querySelectorAll('[role=tab]').forEach(el => {
+          const on = el.dataset.board === b;
+          el.classList.toggle('active', on);
+          el.setAttribute('aria-selected', String(on));
         });
         load(b);
       } else if (e.target.closest('[data-act]')) g.route('title');
@@ -454,16 +487,16 @@ export class App {
     const doc = g.achievementsDoc;
     root.innerHTML = `
       <div class="panel">
-        <h1>Achievements</h1>
+        <h1>${esc(t('achievements'))}</h1>
         <div class="ach-list">
           ${ACHIEVEMENTS.map(a => `
             <div class="ach-card card ${doc.unlocked[a.key] ? 'unlocked' : ''}">
               <span class="ach-icon">${doc.unlocked[a.key] ? '🏅' : '🔒'}</span>
-              <div><strong>${a.name}</strong><p>${a.desc}</p>
-              ${doc.unlocked[a.key] ? `<em>Unlocked ${new Date(doc.unlocked[a.key]).toLocaleDateString()}</em>` : ''}</div>
+              <div><strong>${esc(achName(a.key))}</strong><p>${esc(achDesc(a.key))}</p>
+              ${doc.unlocked[a.key] ? `<em>${esc(t('unlockedOn', { date: new Date(doc.unlocked[a.key]).toLocaleDateString(locale()) }))}</em>` : ''}</div>
             </div>`).join('')}
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     $('[data-act="back"]', root).addEventListener('click', () => g.route('title'));
   }
@@ -471,36 +504,40 @@ export class App {
   screen_cosmetics(root) {
     const g = this.game;
     const prog = g.progression;
+    const unlockText = (u) => {
+      const [kind, n] = u.split('-');
+      return kind === 'stars' ? t('unlock_stars', { n }) : t('unlock_chapter', { n });
+    };
     root.innerHTML = `
       <div class="panel wide">
-        <h1>Workshop &amp; Style</h1>
+        <h1>${esc(t('workshopStyle'))}</h1>
         <div class="card mastery-card">
-          <h2>Mastery track</h2>
+          <h2>${esc(t('masteryTrack'))}</h2>
           <div class="xp-bar"><div style="width:${Math.min(100, (prog.xp % 500) / 5)}%"></div></div>
-          <p>${prog.xp} XP · next flourish at ${Math.ceil((prog.xp + 1) / 500) * 500} XP</p>
-          <p class="muted">Cosmetics change looks only — never hitboxes, timing, information, or power.</p>
+          <p>${esc(t('xpLine', { xp: prog.xp, next: Math.ceil((prog.xp + 1) / 500) * 500 }))}</p>
+          <p class="muted">${esc(t('cosmeticsNote'))}</p>
         </div>
-        <h2>Themes</h2>
+        <h2>${esc(t('themes'))}</h2>
         <div class="theme-grid">
           ${THEME_ORDER.map(tid => {
-            const t = THEMES[tid];
-            const un = themeUnlocked(t, prog);
+            const th = THEMES[tid];
+            const un = themeUnlocked(th, prog);
             const active = g.settings.lastTheme === tid || prog.cosmetics.theme === tid;
             return `<button class="theme-card card ${active ? 'active' : ''} ${un ? '' : 'locked'}" data-theme="${tid}" ${un ? '' : 'disabled'}>
-              <span class="theme-swatch" style="background:linear-gradient(135deg,#${t.floor.toString(16).padStart(6, '0')},#${t.accent.toString(16).padStart(6, '0')})"></span>
-              <strong>${t.name}</strong>
-              <span>${t.blurb}</span>
-              ${un ? '' : `<em>🔒 ${t.unlock.replace('-', ' ')}</em>`}
+              <span class="theme-swatch" style="background:linear-gradient(135deg,#${th.floor.toString(16).padStart(6, '0')},#${th.accent.toString(16).padStart(6, '0')})"></span>
+              <strong>${esc(themeName(tid))}</strong>
+              <span>${esc(themeBlurb(tid))}</span>
+              ${un ? '' : `<em>${esc(unlockText(th.unlock))}</em>`}
             </button>`;
           }).join('')}
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     root.addEventListener('click', (e) => {
       const tid = e.target.closest('[data-theme]')?.dataset.theme;
       if (tid) {
         g.setTheme(tid);
-        this.announce(`${THEMES[tid].name} applied`);
+        this.announce(t('themeApplied', { name: themeName(tid) }));
         this.show('cosmetics');
       } else if (e.target.closest('[data-act]')) g.route('title');
     });
@@ -509,29 +546,29 @@ export class App {
   screen_help(root) {
     const g = this.game;
     const kb = g.input.bindings.keyboard;
-    const toolCards = Object.values(TOOLS).map(t => `
+    const toolCards = Object.values(TOOLS).map(tool => `
       <div class="rule-card card">
-        <h3>${t.name}</h3>
-        <p>${t.blurb}</p>
-        <p class="muted">Placement: ${({ mount: 'wall mounts only', ground: 'floors and ledges', air: 'any open space' })[t.placement]}</p>
+        <h3>${esc(toolName(tool.key))}</h3>
+        <p>${esc(toolBlurb(tool.key))}</p>
+        <p class="muted">${esc(t('placement', { where: t(`place_${tool.placement}`) }))}</p>
       </div>`).join('');
     root.innerHTML = `
       <div class="panel wide">
-        <h1>How to play</h1>
+        <h1>${esc(t('howToPlay'))}</h1>
         <div class="card rule-card">
-          <h3>The loop</h3>
-          <p>Choose a tool, place or trigger it, watch the physics, satisfy the goal. Ring bells fast, hold circles, topple crates, stay airborne — every stage states its goal up front.</p>
-          <p>Score = goal + bonuses + spare tools + speed + style − fumbles. Ties break on completion, fewer invalid actions, then faster time.</p>
+          <h3>${esc(t('theLoop'))}</h3>
+          <p>${esc(t('loopBody'))}</p>
+          <p>${esc(t('scoreBody'))}</p>
         </div>
         <div class="rule-grid">${toolCards}</div>
         <div class="card rule-card">
-          <h3>Controls (current bindings)</h3>
+          <h3>${esc(t('controlsCurrent'))}</h3>
           <ul class="bindings-list">
-            ${Object.entries(kb).map(([act, code]) => `<li><strong>${BINDING_LABELS[act] ?? act}</strong>: <kbd>${esc(bindingText(code))}</kbd></li>`).join('')}
-            <li><strong>Gamepad</strong>: stick moves cursor, A places, X triggers, B cancels, Start pauses. Rebind in Settings.</li>
+            ${Object.entries(kb).map(([act, code]) => `<li><strong>${esc(bindingLabel(act))}</strong>: <kbd>${esc(bindingText(code))}</kbd></li>`).join('')}
+            <li><strong>${esc(t('gamepad'))}</strong>: ${esc(t('gamepadHelp'))}</li>
           </ul>
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        ${backRow()}
       </div>`;
     $('[data-act="back"]', root).addEventListener('click', () => g.route('title'));
   }
@@ -540,56 +577,48 @@ export class App {
     const g = this.game;
     const s = g.settings;
     const a = s.accessibility;
+    const L = (key) => `<span data-i18n="${key}">${esc(t(key))}</span>`;
     root.innerHTML = `
       <div class="panel wide settings">
-        <h1>Settings</h1>
+        <h1 data-i18n="settings">${esc(t('settings'))}</h1>
         <div class="settings-cols">
           <section class="card">
-            <h2>Audio</h2>
+            <h2 data-i18n="audio">${esc(t('audio'))}</h2>
             ${['music', 'effects', 'ambience', 'voice'].map(bus => `
-              <label class="slider-row">${bus[0].toUpperCase() + bus.slice(1)}
+              <label class="slider-row">${L(`bus_${bus}`)}
                 <input type="range" min="0" max="1" step="0.05" value="${s.audio[bus]}" data-audio="${bus}" />
               </label>`).join('')}
-            <label><input type="checkbox" data-setting="audio.muted" ${s.audio.muted ? 'checked' : ''} /> Mute all</label>
+            <label><input type="checkbox" data-setting="audio.muted" ${s.audio.muted ? 'checked' : ''} /> ${L('muteAll')}</label>
           </section>
-          <section class="card gfx-card" id="gfx-card" data-section="graphics">
-            ${graphicsCardHtml(s.graphics, g.scene.graphicsInfo())}
+          <section class="card gfx-card" id="gfx-card" data-section="graphics" data-options-graphics>
+            <div id="gfx-own">${graphicsCardHtml(s.graphics, g.scene.graphicsInfo())}</div>
           </section>
           <section class="card">
-            <h2>Accessibility</h2>
-            ${[
-              ['reducedMotion', 'Reduced motion (no shake, swoops, or particles bursts)'],
-              ['highContrast', 'High contrast'],
-              ['largeText', 'Larger text'],
-              ['leftHanded', 'Left-handed controls'],
-              ['holdToAim', 'Hold to aim (off = toggle)'],
-              ['timingAssist', 'Timing assistance (wider chain windows)'],
-              ['captions', 'Captions for meaningful audio'],
-              ['haptics', 'Haptics'],
-            ].map(([k, label]) => `
-              <label><input type="checkbox" data-acc="${k}" ${a[k] ? 'checked' : ''} /> ${label}</label>`).join('')}
-            <label class="form-row">Color palette
+            <h2 data-i18n="accessibility">${esc(t('accessibility'))}</h2>
+            ${['reducedMotion', 'highContrast', 'largeText', 'leftHanded', 'holdToAim', 'timingAssist', 'captions', 'haptics'].map(k => `
+              <label><input type="checkbox" data-acc="${k}" ${a[k] ? 'checked' : ''} /> ${L(`acc_${k}`)}</label>`).join('')}
+            <label class="form-row">${L('colorPalette')}
               <select data-acc-sel="colorPalette">
-                ${['default', 'deuteranopia', 'tritanopia', 'highContrast'].map(p => `<option ${a.colorPalette === p ? 'selected' : ''}>${p}</option>`).join('')}
+                ${['default', 'deuteranopia', 'tritanopia', 'highContrast'].map(p => `<option value="${p}" data-i18n="pal_${p}" ${a.colorPalette === p ? 'selected' : ''}>${esc(t(`pal_${p}`))}</option>`).join('')}
               </select>
             </label>
           </section>
           <section class="card">
-            <h2>Controls</h2>
+            <h2 data-i18n="controls">${esc(t('controls'))}</h2>
             <div id="bindings-list"></div>
-            <label><input type="checkbox" data-setting="rules.undoInPractice" ${s.rules.undoInPractice ? 'checked' : ''} /> Undo in practice</label>
-            <button class="action-btn" data-act="replay-tutorial">Replay tutorials</button>
+            <label><input type="checkbox" data-setting="rules.undoInPractice" ${s.rules.undoInPractice ? 'checked' : ''} /> ${L('undoInPractice')}</label>
+            <button class="action-btn" data-act="replay-tutorial" data-i18n="replayTutorials">${esc(t('replayTutorials'))}</button>
           </section>
           <section class="card">
-            <h2>Privacy</h2>
-            <label><input type="checkbox" data-telemetry ${s.telemetryConsent ? 'checked' : ''} /> Share anonymous usage stats (start, tutorial steps, round ends, settings changes, error categories)</label>
-            <p class="muted">No text, no pointer trails, no personal data. Aggregated only.</p>
+            <h2 data-i18n="privacy">${esc(t('privacy'))}</h2>
+            <label><input type="checkbox" data-telemetry ${s.telemetryConsent ? 'checked' : ''} /> ${L('telemetry')}</label>
+            <p class="muted" data-i18n="telemetryNote">${esc(t('telemetryNote'))}</p>
           </section>
         </div>
-        <div class="row"><button class="action-btn" data-act="back">← Back</button></div>
+        <div class="row"><button class="action-btn" data-act="back" data-i18n="back">${esc(t('back'))}</button></div>
       </div>`;
     this.renderBindings($('#bindings-list', root));
-    bindGraphicsCard($('#gfx-card', root), {
+    bindGraphicsCard($('#gfx-own', root), {
       getSaved: () => g.settings.graphics,
       apply: (next) => g.setGraphics(next),
       getInfo: () => g.scene.graphicsInfo(),
@@ -618,12 +647,22 @@ export class App {
     });
   }
 
+  // Settings stays mounted on a language change: only the game's own labels,
+  // the Graphics box and the bindings list are rewritten.
+  relabelSettings() {
+    const root = this.screenRoot;
+    applyDom(root);
+    $('#gfx-own', root)?.relabel?.();
+    const list = $('#bindings-list', root);
+    if (list && !this.cancelRebind) this.renderBindings(list);
+  }
+
   renderBindings(el) {
     const g = this.game;
     const kb = g.input.bindings.keyboard;
-    el.innerHTML = Object.entries(BINDING_LABELS).filter(([k]) => kb[k]).map(([act]) => `
+    el.innerHTML = Object.keys(BINDING_LABELS).filter((k) => kb[k]).map((act) => `
       <div class="binding-row">
-        <span>${BINDING_LABELS[act]}</span>
+        <span>${esc(bindingLabel(act))}</span>
         <button class="binding-key" data-rebind="${act}">${esc(bindingText(kb[act]))}</button>
       </div>`).join('');
   }
@@ -631,7 +670,7 @@ export class App {
   captureRebind(action, btn) {
     const list = btn.parentElement.parentElement;
     if (this.cancelRebind) this.cancelRebind();   // only one capture at a time
-    btn.textContent = 'press a key…';
+    btn.textContent = t('pressKey');
     btn.classList.add('listening');
     const stop = () => {
       window.removeEventListener('keydown', handler, true);
@@ -654,16 +693,17 @@ export class App {
 
   overlay_pause(root) {
     const g = this.game;
+    const btn = (cls, act, key, extra = '') => `<button class="${cls}" data-act="${act}" data-i18n="${key}"${extra}>${esc(t(key))}</button>`;
     root.innerHTML = `
       <div class="scrim"></div>
-      <div class="panel narrow overlay-panel" role="dialog" aria-modal="true" aria-label="Paused">
-        <h1>Paused</h1>
+      <div class="panel narrow overlay-panel" role="dialog" aria-modal="true" aria-label="${esc(t('paused'))}" data-i18n-aria="paused">
+        <h1 data-i18n="paused">${esc(t('paused'))}</h1>
         <div class="pause-actions">
-          <button class="mega-btn" data-act="resume" autofocus>▶ Resume</button>
-          <button class="action-btn" data-act="restart-round">🔁 Restart round</button>
-          <button class="action-btn" data-act="settings">⚙ Settings</button>
-          <button class="action-btn" data-act="help">❓ Help</button>
-          <button class="action-btn danger" data-act="leave">🚪 Leave round</button>
+          ${btn('mega-btn', 'resume', 'resume', ' autofocus')}
+          ${btn('action-btn', 'restart-round', 'restartRound')}
+          ${btn('action-btn', 'settings', 'settingsBtn')}
+          ${btn('action-btn', 'help', 'helpBtn')}
+          ${btn('action-btn danger', 'leave', 'leaveRound')}
         </div>
         <p class="muted" id="pause-away"></p>
       </div>`;
@@ -681,38 +721,17 @@ export class App {
   overlay_results(root, { results }) {
     const g = this.game;
     const r = results;
-    const c = r.score.components;
     const won = r.score.primaryComplete;
-    const rows = [
-      ['🎯 Main goal', c.goal], ['✦ Bonuses', c.objectives],
-      ['🧰 Spare tools', c.efficiency], ['⏱ Swiftness', c.swiftness],
-      ['🤸 Style (air, flips, height)', c.style],
-      ['🧯 Fumbles', c.penalty],
-    ];
-    root.innerHTML = `
-      <div class="scrim"></div>
-      <div class="panel narrow overlay-panel results-panel" role="dialog" aria-modal="true" aria-label="Round results">
-        <h1>${won ? '🎉 Goal complete!' : '🔧 ' + reasonText(r.reason)}</h1>
-        <div class="results-stars" aria-label="${r.stars} stars">${'★'.repeat(r.stars)}${'☆'.repeat(3 - r.stars)}</div>
-        <div class="results-total">${r.score.total}<small> points</small></div>
-        <table class="breakdown">
-          ${rows.filter(([, v]) => v !== 0).map(([k, v]) => `<tr><td>${k}</td><td>${v > 0 ? '+' : ''}${v}</td></tr>`).join('')}
-        </table>
-        ${r.newAchievements?.length ? `<div class="ach-unlocks">${r.newAchievements.map(a => `<span class="ach-unlock">🏅 ${a.name}</span>`).join('')}</div>` : ''}
-        <div id="results-compare" class="compare"></div>
-        <p id="results-lb" class="muted" aria-live="polite" hidden></p>
-        <div class="results-actions">
-          <button class="mega-btn" data-act="next" autofocus>${won ? nextLabel(g, r) : '🔁 Retry'}</button>
-          <button class="action-btn" data-act="retry">🔁 Retry</button>
-          <button class="action-btn" data-act="map">🗺 Stages</button>
-          <button class="action-btn" data-act="title">🏠 Title</button>
-        </div>
-      </div>`;
-    this.postToLeaderboard($('#results-lb', root), $('#results-compare', root), r);
+    // lb / cmp hold the leaderboard + comparison lines as {key, vars} so a
+    // language change repaints them without posting or fetching again
+    this.resultsCtx = { results: r, lb: null, cmp: null };
+    this.renderResults(root);
+    this.postToLeaderboard(r);
     root.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (!act) return;
       this.closeOverlay();
+      this.resultsCtx = null;
       if (act === 'retry') { g.platform.telemetry('retry', { level: r.levelId, mode: r.mode }); g.retryStage(); }
       if (act === 'next') won ? g.nextStage(r) : g.retryStage();
       if (act === 'map') g.route(r.mode === 'challenge' ? 'challenge' : 'journey');
@@ -720,43 +739,96 @@ export class App {
     });
   }
 
+  renderResults(root) {
+    const ctx = this.resultsCtx;
+    if (!ctx) return;
+    const focusKey = focusSelector(document.activeElement, root);
+    const r = ctx.results;
+    const c = r.score.components;
+    const won = r.score.primaryComplete;
+    const rows = [
+      ['row_goal', c.goal], ['row_objectives', c.objectives],
+      ['row_efficiency', c.efficiency], ['row_swiftness', c.swiftness],
+      ['row_style', c.style], ['row_penalty', c.penalty],
+    ];
+    root.innerHTML = `
+      <div class="scrim"></div>
+      <div class="panel narrow overlay-panel results-panel" role="dialog" aria-modal="true" aria-label="${esc(t('resultsAria'))}">
+        <h1>${esc(won ? t('goalCompleteTitle') : '🔧 ' + reasonText(r.reason))}</h1>
+        <div class="results-stars" aria-label="${esc(t('starsAria', { n: r.stars }))}">${stars(r.stars)}</div>
+        <div class="results-total">${r.score.total}<small> ${esc(t('points'))}</small></div>
+        <table class="breakdown">
+          ${rows.filter(([, v]) => v !== 0).map(([k, v]) => `<tr><td>${esc(t(k))}</td><td>${v > 0 ? '+' : ''}${v}</td></tr>`).join('')}
+        </table>
+        ${r.newAchievements?.length ? `<div class="ach-unlocks">${r.newAchievements.map(a => `<span class="ach-unlock">🏅 ${esc(achName(a.key))}</span>`).join('')}</div>` : ''}
+        <div id="results-compare" class="compare"></div>
+        <p id="results-lb" class="muted" aria-live="polite" hidden></p>
+        <div class="results-actions">
+          <button class="mega-btn" data-act="next" autofocus>${esc(won ? nextLabel(r) : t('retry'))}</button>
+          <button class="action-btn" data-act="retry">${esc(t('retry'))}</button>
+          <button class="action-btn" data-act="map">${esc(t('stagesBtn'))}</button>
+          <button class="action-btn" data-act="title">${esc(t('titleBtn'))}</button>
+        </div>
+      </div>`;
+    this.paintResultsLines();
+    if (focusKey) $(focusKey, root)?.focus?.();
+  }
+
+  paintResultsLines() {
+    const ctx = this.resultsCtx;
+    const line = $('#results-lb', this.overlayRoot);
+    const compare = $('#results-compare', this.overlayRoot);
+    if (!ctx || !line || !compare) return;
+    line.hidden = !ctx.lb;
+    line.textContent = ctx.lb ? pt(ctx.lb.key, ctx.lb.vars) : '';
+    compare.innerHTML = ctx.cmp ? `<p${ctx.cmp.muted ? ' class="muted"' : ''}>${esc(t(ctx.cmp.key, ctx.cmp.vars))}</p>` : '';
+  }
+
   // Signed in, completed Journey/Daily/Challenge rounds post their total to
   // the platform high-score board (then compare against it); otherwise
   // only the comparison runs.
-  async postToLeaderboard(line, compare, r) {
+  async postToLeaderboard(r) {
+    const ctx = this.resultsCtx;
     const p = this.game.platform;
     const ranked = ['daily', 'journey', 'challenge'].includes(r.mode) && r.score.primaryComplete;
-    if (!p.hosted || !ranked) { this.loadComparison(compare, r); return; }
-    line.hidden = false;
-    line.textContent = pt('lbPosting');
+    if (!p.hosted || !ranked) { this.loadComparison(ctx, r); return; }
+    ctx.lb = { key: 'lbPosting' };
+    this.paintResultsLines();
     const res = await p.postScore(r.score.total);
-    line.textContent = !res.posted ? pt('lbNotPosted')
-      : res.rank ? pt('lbRank', { rank: res.rank }) : pt('lbPosted');
-    this.loadComparison(compare, r);
+    ctx.lb = !res.posted ? { key: 'lbNotPosted' }
+      : res.rank ? { key: 'lbRank', vars: { rank: res.rank } } : { key: 'lbPosted' };
+    if (this.resultsCtx === ctx) this.paintResultsLines();
+    this.loadComparison(ctx, r);
   }
 
-  async loadComparison(el, r) {
-    if (!r.score.primaryComplete) { el.innerHTML = ''; return; }
+  async loadComparison(ctx, r) {
+    if (!r.score.primaryComplete) { ctx.cmp = null; return; }
     const boardId = r.mode === 'daily' ? `daily-${this.game.dailyLevel.daily.day}` : 'global';
     const res = await this.game.platform.fetchBoard(boardId);
-    if (!res.rows.length) { el.innerHTML = '<p class="muted">First score on this board!</p>'; return; }
-    const better = res.rows.filter(row => row.score > r.score.total).length;
-    el.innerHTML = `<p>${better === 0 ? '👑 Top of the board!' : `Beats ${res.rows.length - better} of ${res.rows.length} scores${res.casual ? ' (casual board)' : ''}.`}</p>`;
+    if (!res.rows.length) ctx.cmp = { key: 'firstScore', muted: true };
+    else {
+      const better = res.rows.filter(row => row.score > r.score.total).length;
+      ctx.cmp = better === 0 ? { key: 'topOfBoard' }
+        : { key: res.casual ? 'beatsCasual' : 'beats', vars: { n: res.rows.length - better, total: res.rows.length } };
+    }
+    if (this.resultsCtx === ctx) this.paintResultsLines();
   }
 }
 
-function reasonText(reason) {
-  return ({
-    'out-of-actions': 'Out of tools',
-    'time-limit': 'Time up',
-    'move-limit': 'Move limit reached',
-    'abandoned': 'Round left',
-  })[reason] ?? 'Round over';
+function nextLabel(r) {
+  const m = /^j(\d+)$/.exec(r.levelId);
+  if (m && parseInt(m[1], 10) < 40) return t('nextStage');
+  if (r.mode === 'learn') return t('nextLesson');
+  return t('keepGoing');
 }
 
-function nextLabel(g, r) {
-  const m = /^j(\d+)$/.exec(r.levelId);
-  if (m && parseInt(m[1], 10) < 40) return '▶ Next stage';
-  if (r.mode === 'learn') return '▶ Next lesson';
-  return '▶ Keep going';
+// A selector that finds the "same" control again after a re-render.
+function focusSelector(el, root) {
+  if (!el || !root?.contains(el) || el === root) return null;
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  for (const attr of ['data-act', 'data-level', 'data-board', 'data-theme', 'data-rebind']) {
+    const v = el.getAttribute(attr);
+    if (v != null) return `[${attr}="${CSS.escape(v)}"]`;
+  }
+  return null;
 }

@@ -20,8 +20,18 @@ export class Platform {
     this.telemetryConsent = false;
     this.sessionRand = Math.random().toString(36).slice(2, 10);
     this.onAuthChange = null;  // (signedIn) => void
+    this.onConflict = null;    // () => void — main.js reloads, merges and saves again
     if (sh) {
-      sh.on('saved', (ok) => { if (this.hosted) this.syncStatus = ok ? 'synced' : 'error'; });
+      sh.on('saved', (ok) => {
+        if (!this.hosted || (sh.saveConflicted && sh.saveConflicted())) return;
+        this.syncStatus = ok ? 'synced' : 'error';
+      });
+      // A write lost to a newer save from another device: merge and save again.
+      sh.on('saveconflict', () => {
+        if (!this.hosted || !this.onConflict) return;
+        this.syncStatus = 'saving';
+        this.onConflict();
+      });
       sh.on('auth', (e) => {
         if (e && e.signedIn) return;
         this.hosted = false;
@@ -173,6 +183,8 @@ export class Platform {
   async cloudLoad(kind) {
     if (!this.hosted) return { error: 'not-hosted' };
     const saved = await this.sh.loadJSON();
+    // a failed read (network/server) is not an empty slot: never overwrite it
+    if (!saved && this.sh.saveLoadFailed && this.sh.saveLoadFailed()) return { error: 'load-failed' };
     if (!saved) return { doc: null };
     this.syncStatus = 'synced';
     // { kind, doc } envelope; older saves stored the document itself

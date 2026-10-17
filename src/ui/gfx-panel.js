@@ -1,7 +1,7 @@
 // Graphics section of the Settings screen: quality preset, render scale,
 // per-effect overrides, adaptive resolution and frame-rate readout, with a
-// live GPU / cost summary. Strings are localized from navigator.language
-// (the game has no language setting of its own).
+// live GPU / cost summary. Strings follow the game language (i18n.js).
+import { locale } from './i18n.js';
 import { PRESETS, CATEGORIES, presetTier, withPreset, describe, SHADOW_MAP } from '../render/gfx.js';
 
 const EN = {
@@ -146,10 +146,6 @@ export function pickLocale(langs) {
 export const GFX_LOCALES = Object.keys(STRINGS);
 export function gfxStrings(locale) { return STRINGS[locale] || STRINGS['en-US']; }
 
-function navLangs() {
-  try { return navigator.languages?.length ? navigator.languages : [navigator.language]; } catch { return []; }
-}
-
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export function summaryText(info, L) {
@@ -164,7 +160,7 @@ export function summaryText(info, L) {
 
 /** Markup for the Graphics card. `saved` = settings.graphics; `info` = scene.graphicsInfo(). */
 export function graphicsCardHtml(saved, info) {
-  const L = gfxStrings(pickLocale(navLangs()));
+  const L = gfxStrings(locale());
   const tierName = (p) => L[p] || p;
   const r = info.resolved;
   const presetValue = PRESETS.includes(saved.preset) ? saved.preset : 'auto';
@@ -207,7 +203,6 @@ export function graphicsCardHtml(saved, info) {
  * saves + applies; `getInfo()` reads scene.graphicsInfo().
  */
 export function bindGraphicsCard(card, { getSaved, apply, getInfo }) {
-  const L = gfxStrings(pickLocale(navLangs()));
   const rerender = () => {
     const focusId = document.activeElement?.id;
     card.innerHTML = graphicsCardHtml(getSaved(), getInfo());
@@ -216,7 +211,7 @@ export function bindGraphicsCard(card, { getSaved, apply, getInfo }) {
   const refreshSummary = () => {
     const info = getInfo();
     const sum = card.querySelector('#gfx-summary');
-    if (sum) sum.textContent = summaryText(info, L);
+    if (sum) sum.textContent = summaryText(info, gfxStrings(locale()));
     const note = card.querySelector('#gfx-post-note');
     if (note) note.hidden = !info.postFailed;
   };
@@ -246,6 +241,7 @@ export function bindGraphicsCard(card, { getSaved, apply, getInfo }) {
     if (el.dataset.gfx === 'preset') rerender();
     else refreshSummary();
   });
+  card.relabel = rerender; // language change: rebuild the labels in place
   // keep the pixel size / post note current (adaptive resolution, resizes)
   const timer = setInterval(() => {
     if (!card.isConnected) { clearInterval(timer); return; }

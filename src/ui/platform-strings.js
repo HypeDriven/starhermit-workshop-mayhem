@@ -1,8 +1,8 @@
 // Workshop Mayhem — strings for the StarHermit buttons and toasts (sign-in,
-// invite, signed out, results leaderboard line). Like the Graphics panel, they follow the browser
-// language.
+// invite, signed out, results leaderboard line). Like the Graphics panel, they
+// follow the game language (i18n.js).
 
-import { pickLocale } from './gfx-panel.js';
+import { locale as gameLocale } from './i18n.js';
 
 const EN = {
   signIn: 'Sign in with StarHermit',
@@ -100,9 +100,7 @@ const STRINGS = {
 
 /** Translator for a locale with English fallback. */
 export function platformStrings(locale) {
-  let langs = locale ? [locale] : [];
-  if (!locale) { try { langs = navigator.languages?.length ? navigator.languages : [navigator.language]; } catch { /* no navigator */ } }
-  const table = STRINGS[pickLocale(langs)] || EN;
+  const table = STRINGS[locale || gameLocale()] || EN;
   return (key, vars) => {
     let s = table[key] !== undefined ? table[key] : (EN[key] !== undefined ? EN[key] : key);
     if (vars) for (const k in vars) s = s.replace('{' + k + '}', vars[k]);

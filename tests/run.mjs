@@ -7,5 +7,6 @@ import './content.test.mjs';
 import './server.test.mjs';
 import './gfx.test.mjs';
 import './platform.test.mjs';
+import './i18n.test.mjs';
 import { main } from './harness.mjs';
 main();

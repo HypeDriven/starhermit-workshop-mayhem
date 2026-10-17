@@ -2,6 +2,7 @@
 // keyboard navigation with a virtual cursor, gamepad polling, remappable
 // bindings, and action-id double-commit prevention (spec §3 input).
 import { explainPlacement, TOOLS } from '../rules/engine.js';
+import { t, toolName } from './i18n.js';
 
 export const DEFAULT_BINDINGS = {
   keyboard: {
@@ -17,6 +18,7 @@ export const DEFAULT_BINDINGS = {
   },
 };
 
+// English labels; the UI shows bindingLabel(action) from i18n.js (same keys, same order).
 export const BINDING_LABELS = {
   confirm: 'Confirm / place', trigger: 'Trigger tool', cancel: 'Cancel',
   pause: 'Pause', undo: 'Undo', hint: 'Hint', restart: 'Restart round',
@@ -84,7 +86,7 @@ export class InputController {
     if (this.selectedTool === tool) { this.deselect(); this.cb.sfx?.('ui-drop'); return; }
     const legal = this.session.legal;
     if (!legal?.placements.find(p => p.tool === tool)) {
-      this.cb.announce?.(`${TOOLS[tool]?.name ?? tool} is out of stock`);
+      this.cb.announce?.(t('outOfStock', { tool: toolName(tool) }));
       return;
     }
     this.selectedTool = tool;
@@ -129,7 +131,7 @@ export class InputController {
     c.addEventListener('pointercancel', (e) => this.onPointerCancel(e));
     c.addEventListener('lostpointercapture', (e) => this.onPointerCancel(e));
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
-    window.addEventListener('gamepadconnected', () => this.cb.announce?.('Gamepad connected'));
+    window.addEventListener('gamepadconnected', () => this.cb.announce?.(t('gamepadConnected')));
   }
 
   toWorld(e) {

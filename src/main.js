@@ -8,6 +8,7 @@ import { App } from './ui/app.js';
 import { Hud } from './ui/hud.js';
 import { InputController, defaultKeyboardCodes } from './ui/input.js';
 import { platformStrings } from './ui/platform-strings.js';
+import { t, onLanguage, levelName, levelIntro, toolName, captionText, achName, reasonText, num } from './ui/i18n.js';
 import { Announcer, BoardMirror } from './ui/a11y.js';
 import { AudioSystem } from './audio/audio.js';
 import { Platform } from './platform/client.js';
@@ -18,7 +19,7 @@ import { themeById } from './content/themes.js';
 import { emptyAchievementDoc } from './content/achievements.js';
 import {
   loadLocal, saveLocal, DEFAULT_SETTINGS, DEFAULT_PROFILE, DEFAULT_PROGRESSION,
-  resolveConflict,
+  mergeProgression, unwrapDoc,
 } from './session/persistence.js';
 import { migrate } from './render/gfx.js';
 
@@ -38,11 +39,11 @@ class GameApp {
     this.achievementsDoc = loadLocal('achievements') ?? emptyAchievementDoc();
     this.awayAt = null;
     this.loadGroups = [
-      { label: 'Rules engine', done: false },
-      { label: 'Content & stages', done: false },
-      { label: 'Workshop scene', done: false },
-      { label: 'Interface', done: false },
-      { label: 'Platform & time sync', done: false },
+      { label: 'load_rules', done: false },
+      { label: 'load_content', done: false },
+      { label: 'load_scene', done: false },
+      { label: 'load_ui', done: false },
+      { label: 'load_platform', done: false },
     ];
   }
 
@@ -68,7 +69,7 @@ class GameApp {
     this.audio = new AudioSystem();
     this.audio.setVolumes(this.settings.audio);
     this.audio.setMuted(this.settings.audio.muted);
-    this.audio.onCaption((t) => this.mirror.caption(t));
+    this.audio.onCaption((key) => this.mirror.caption(captionText(key)));
 
     this.scene = new GameScene(canvas, {
       graphics: this.settings.graphics,
@@ -92,8 +93,8 @@ class GameApp {
         undo: () => this.doUndo(),
         restart: () => this.session.restart(),
         skip: () => this.doSkip(),
-        announce: (t) => this.announcer.say(t),
-        sfx: (t) => this.audio.event({ t }),
+        announce: (text) => this.announcer.say(text),
+        sfx: (id) => this.audio.event({ t: id }),
         trayChanged: () => {},
         tutorialUi: (kind, data) => this.session.tutorialUi(kind, data),
       },
@@ -101,7 +102,7 @@ class GameApp {
     this.input.setBindings(this.settings.bindings);
     this.hud = new Hud(document.getElementById('hud-root'), {
       onAction: (act, arg) => this.onHudAction(act, arg),
-      announce: (t, p) => this.announcer.say(t, p),
+      announce: (text, p) => this.announcer.say(text, p),
     });
     this.markLoaded(1, 0.6);
     this.markLoaded(3, 0.75);
@@ -110,6 +111,8 @@ class GameApp {
     await this.platform.syncTime();
     this.platform.startActivity();
     this.markLoaded(4, 0.9);
+    // a cloud write lost to another device: reload, merge, save again
+    this.platform.onConflict = () => this.reconcileCloud({ conflict: true });
     await this.reconcileCloud();
     await this.adoptPlatformPrefs();
 
@@ -119,6 +122,8 @@ class GameApp {
     this.applyAccessibility();
     this.bindGlobal();
     this.app.show('loading', { progress: 1, groups: this.loadGroups });
+    // language changes re-render menus, HUD and overlays in place
+    onLanguage(() => this.relocalize());
     this.toTitle();
     this.platform.telemetry('start', { mode: 'boot' });
     this.startLoop();
@@ -127,7 +132,7 @@ class GameApp {
   // Hosted: platform settings win over local ones, and the player's
   // StarHermit key bindings replace local keyboard overrides.
   async adoptPlatformPrefs() {
-    this.pt = platformStrings();
+    this.pt = (key, vars) => platformStrings()(key, vars);
     this.platform.onAuthChange = () => {
       this.toast(this.pt('signedOut'));
       if (this.app.current === 'title') this.app.show('title');
@@ -176,19 +181,19 @@ class GameApp {
   }
 
   toast(text) {
-    let t = document.getElementById('sh-toast');
-    if (!t) {
-      t = document.createElement('div');
-      t.id = 'sh-toast';
-      t.className = 'sh-toast';
-      t.setAttribute('aria-hidden', 'true');
-      document.body.appendChild(t);
+    let el = document.getElementById('sh-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sh-toast';
+      el.className = 'sh-toast';
+      el.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(el);
     }
-    t.textContent = text;
-    t.hidden = false;
+    el.textContent = text;
+    el.hidden = false;
     this.announcer.say(text);
     clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+    this.toastTimer = setTimeout(() => { el.hidden = true; }, 3500);
   }
 
   markLoaded(i, p) {
@@ -199,47 +204,53 @@ class GameApp {
   showCompatibility() {
     document.getElementById('screen-root').innerHTML = `
       <div class="panel narrow">
-        <h1>Workshop Mayhem needs WebGL</h1>
-        <div class="card"><p>Your browser or device has WebGL disabled, so the workshop can't be drawn. Your profile and progress are safe on this device.</p>
-        <p>Try a current version of Chrome, Edge, Firefox or Safari, or enable hardware acceleration.</p></div>
+        <h1>${t('compatTitle')}</h1>
+        <div class="card"><p>${t('compatBody')}</p>
+        <p>${t('compatHint')}</p></div>
       </div>`;
   }
 
   onContextLoss(lost) {
     if (lost) {
-      this.announcer.say('Graphics context lost — rebuilding the workshop', 'assertive');
+      this.announcer.say(t('contextLost'), 'assertive');
     } else {
-      this.announcer.say('Workshop restored');
+      this.announcer.say(t('contextRestored'));
     }
   }
 
-  async reconcileCloud() {
+  // Boot and save conflicts: merge the cloud progression with the local one
+  // (best stars/scores/XP win per entry, nothing either device earned is
+  // dropped), adopt it, and write the merge back to both stores.
+  async reconcileCloud({ conflict = false } = {}) {
     if (!this.platform.hosted) return;
-    // account identity: nickname via the profile endpoint (never JWT claims)
-    const nickname = await this.platform.loadAccountProfile();
-    if (nickname) {
-      this.profile = { ...this.profile, guest: false, name: nickname, displayName: nickname };
-      saveLocal('profile', this.profile);
+    if (!conflict) {
+      // account identity: nickname via the profile endpoint (never JWT claims)
+      const nickname = await this.platform.loadAccountProfile();
+      if (nickname) {
+        this.profile = { ...this.profile, guest: false, name: nickname, displayName: nickname };
+        saveLocal('profile', this.profile);
+      }
     }
     const r = await this.platform.cloudLoad('progression');
-    if (r.error || !r.doc) {
-      // no cloud doc yet (or offline): push the local one as the first mirror
-      this.platform.cloudSave('progression', saveLocal('progression', this.progression));
-      return;
+    if (r.error) return; // load failed: keep playing locally; never overwrite an unread slot
+    const remote = r.doc ? progressionData(r.doc) : null;
+    const local = loadLocal('progression') ?? this.progression;
+    const merged = remote ? mergeProgression(local, remote) : local;
+    this.progression = merged;
+    const doc = saveLocal('progression', merged);
+    if (conflict || !remote || JSON.stringify(merged) !== JSON.stringify(remote)) {
+      this.platform.cloudSave('progression', doc);
     }
-    const local = JSON.parse(localStorage.getItem('workshop-mayhem:progression') || 'null');
-    if (!local) {
-      this.progression = r.doc.data ?? r.doc;
-      saveLocal('progression', this.progression);
-      return;
+    if (conflict && this.state !== 'active' && ['title', 'journey', 'challenge', 'cosmetics'].includes(this.app.current)) {
+      this.app.show(this.app.current, this.app.currentParams, { relocalize: true });
     }
-    // remote-preferred: the cloud slot is the cross-device source of truth;
-    // a strictly-better local doc still wins on its own merits
-    const res = resolveConflict(local, r.doc);
-    if (res.winner !== 'local') {
-      this.progression = r.doc.data ?? r.doc;
-      saveLocal('progression', this.progression);
-    }
+  }
+
+  // Language change: menus, settings labels, overlays, HUD, board mirror.
+  relocalize() {
+    this.app.relocalize();
+    this.hud.relocalize(this.session.level?.tutorial ? this.session.tutorialStep : null);
+    if (this.session.state) this.mirror.update(this.session.summary, true, this.session.state.goals);
   }
 
   // --- routing ------------------------------------------------------------------
@@ -370,7 +381,7 @@ class GameApp {
     this.audio.startMusic(themeById(level.theme).music);
     this.audio.startAmbience(themeById(level.theme).ambience);
     this.audio.setIntensity(1);
-    this.announcer.say(`${level.name}. ${level.intro || ''}`);
+    this.announcer.say(`${levelName(level)}. ${levelIntro(level)}`);
     // tutorial setup
     if (mode === 'learn' && level.tutorial) {
       this.session.tutorialStep = 0;
@@ -386,7 +397,7 @@ class GameApp {
         this.hud.countdown(null);
         this.state = 'active';
         this.input.setEnabled(true);
-        this.announcer.say('Go!');
+        this.announcer.say(t('go'));
         return;
       }
       this.hud.countdown(n || 'Go!');
@@ -403,7 +414,7 @@ class GameApp {
     this.input.setEnabled(false);   // a paused round must not accept play commands
     this.app.showOverlay('pause');
     this.audio.event({ t: 'pause' });
-    this.announcer.say('Paused');
+    this.announcer.say(t('paused'));
   }
 
   resumeGame() {
@@ -413,12 +424,12 @@ class GameApp {
     this.state = 'active';
     this.input.setEnabled(true);
     this.audio.event({ t: 'resume' });
-    this.announcer.say('Resumed');
+    this.announcer.say(t('resumed'));
     // "while you were away" summary
     const awayEl = document.getElementById('pause-away');
     if (this.awayAt && awayEl) {
       const secs = Math.round((Date.now() - this.awayAt) / 1000);
-      if (secs > 20) awayEl.textContent = `While you were away (${secs}s), the simulation was paused. Nothing moved.`;
+      if (secs > 20) awayEl.textContent = t('awayNote', { n: secs });
       this.awayAt = null;
     }
   }
@@ -434,8 +445,8 @@ class GameApp {
     switch (act) {
       case 'pause': this.pauseGame(); break;
       case 'trigger': {
-        const t = this.session.legal?.triggers?.[0];
-        if (t) this.session.trigger(t.toolId);
+        const first = this.session.legal?.triggers?.[0];
+        if (first) this.session.trigger(first.toolId);
         break;
       }
       case 'trigger-tool': this.session.trigger(arg); break;
@@ -461,13 +472,13 @@ class GameApp {
   showHint() {
     const hint = this.session.hint();
     if (!hint) {
-      this.announcer.say('No more hints — improvise!');
+      this.announcer.say(t('noHints'));
       return;
     }
     this.audio.event({ t: 'hint' });
     this.announcer.say(hint.kind === 'place'
-      ? `Hint: place a ${hint.tool} near (${hint.x.toFixed(1)}, ${hint.y.toFixed(1)})`
-      : `Hint: trigger the ${hint.type ?? 'tool'}`);
+      ? t('hintPlace', { tool: toolName(hint.tool), x: num(hint.x, 1), y: num(hint.y, 1) })
+      : t('hintTrigger', { tool: toolName(hint.type) }));
     if (hint.kind === 'place') {
       this.scene.showGhost(hint.tool);
       this.scene.setGhostPose({ x: hint.x, y: hint.y }, Math.atan2(hint.dy ?? 0, hint.dx ?? 1), true);
@@ -480,8 +491,8 @@ class GameApp {
     this.scene.handleEvent(ev, this.session);
     switch (ev.t) {
       case 'invalid': this.hud.showInvalid(ev.reason); break;
-      case 'goal': this.announcer.say('Goal complete!'); break;
-      case 'bell': this.mirror.caption(ev.done ? 'bell rung!' : 'bell tapped'); break;
+      case 'goal': this.announcer.say(t('goalComplete')); break;
+      case 'bell': this.mirror.caption(captionText(ev.done ? 'bellRung' : 'bellTapped')); break;
       case 'tutorial-step': {
         const lvl = this.session.level;
         this.hud.tutorialStep(lvl, ev.index);
@@ -511,18 +522,18 @@ class GameApp {
     this.progression = loadLocal('progression') ?? this.progression;
     this.achievementsDoc = loadLocal('achievements') ?? this.achievementsDoc;
     for (const a of results.newAchievements ?? []) {
-      this.announcer.say(`Achievement unlocked: ${a.name}`, 'assertive');
+      this.announcer.say(t('achUnlocked', { name: achName(a.key) }), 'assertive');
       this.audio.event({ t: 'achievement', key: a.key });
     }
     if (results.newRecord) {
-      this.announcer.say('New personal record!', 'assertive');
+      this.announcer.say(t('newRecord'), 'assertive');
       this.audio.event({ t: 'new-record' });
     }
     if (this.platform.hosted) this.platform.cloudSave('progression', saveLocal('progression', this.progression));
     this.announcer.say(
       results.score.primaryComplete
-        ? `Goal complete! ${results.score.total} points, ${results.stars} stars.`
-        : `Round over: ${results.reason}. ${results.score.total} points.`,
+        ? t('resultsWin', { points: results.score.total, stars: results.stars })
+        : t('resultsLose', { reason: reasonText(results.reason), points: results.score.total }),
     );
     clearTimeout(this.resultsTimer);
     this.resultsTimer = setTimeout(() => {
@@ -624,7 +635,7 @@ class GameApp {
     this.settings.audio.muted = !this.settings.audio.muted;
     this.audio.setMuted(this.settings.audio.muted);
     this.saveSettings();
-    this.announcer.say(this.settings.audio.muted ? 'Muted' : 'Sound on');
+    this.announcer.say(t(this.settings.audio.muted ? 'muted' : 'soundOn'));
   }
 
   // --- global events ------------------------------------------------------------
@@ -689,7 +700,7 @@ class GameApp {
       this.scene.frame(dt, this.session.state ? this.session : null);
       if (this.session.state) {
         this.hud.update(this.session, this.input);
-        this.mirror.update(this.session.summary);
+        this.mirror.update(this.session.summary, false, this.session.state.goals);
         // low-time warning (challenge / time-limited rounds), once per round
         const s = this.session.state;
         if (this.state === 'active' && !this._timerWarned && !this.session.finished) {
@@ -703,6 +714,12 @@ class GameApp {
     };
     requestAnimationFrame(loop);
   }
+}
+
+// Cloud slot holds a wrapped progression doc (older saves: the bare data).
+function progressionData(doc) {
+  try { return unwrapDoc('progression', doc); } catch { /* bare or unversioned */ }
+  return doc.data ?? doc;
 }
 
 function webglAvailable(canvas) {
@@ -733,8 +750,8 @@ if (typeof window !== 'undefined') window.app = app; // debug/validation handle
 app.boot().catch((err) => {
   console.error(err);
   document.getElementById('screen-root').innerHTML = `
-    <div class="panel narrow"><h1>Something jammed</h1>
-    <div class="card"><p>The workshop failed to start: ${err.message}</p>
-    <p>Reload to try again. Your progress is stored locally.</p></div></div>`;
+    <div class="panel narrow"><h1>${t('jamTitle')}</h1>
+    <div class="card"><p>${t('jamBody', { msg: String(err.message).replace(/[<>&]/g, '') })}</p>
+    <p>${t('jamHint')}</p></div></div>`;
 });
 export { app };

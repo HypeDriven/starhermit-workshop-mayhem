@@ -1,5 +1,6 @@
 // Accessibility layer: live announcer, navigable board mirror, captions for
 // meaningful audio, contrast/palette application (spec §3 accessibility).
+import { t, num, toolName, reasonText } from './i18n.js';
 export class Announcer {
   constructor(el) {
     this.el = el;
@@ -35,7 +36,9 @@ export class BoardMirror {
     this.captionsEnabled = true;
   }
 
-  update(summary, force = false) {
+  // `goals` = live goal state (session.state.goals) so progress reads in the
+  // player's language; falls back to the summary's own goal list.
+  update(summary, force = false, goals = null) {
     if (!summary) return;
     const big = summary.phase !== this.lastPhase || force;
     const moved = summary.tick - this.lastTick > 240;
@@ -44,16 +47,17 @@ export class BoardMirror {
     this.lastPhase = summary.phase;
     const d = summary.dummy;
     const parts = [];
-    parts.push(`<li>Dummy at ${d.x.toFixed(1)} metres right, ${d.y.toFixed(1)} up${d.moving ? ', moving' : ', at rest'}${d.airborne ? ', airborne' : ''}.</li>`);
-    const stocks = Object.entries(summary.stock).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`).join(', ');
-    parts.push(`<li>Tools left: ${stocks || 'none'}.</li>`);
-    const armed = summary.tools.filter(t => t.status === 'armed');
-    if (armed.length) parts.push(`<li>Armed: ${armed.map(t => t.type).join(', ')}.</li>`);
-    for (const g of summary.goals) {
-      parts.push(`<li>${g.primary ? 'Main goal' : 'Bonus'} (${g.type}): ${g.done ? 'done' : g.progress}.</li>`);
+    parts.push(`<li>${t('mirror_dummy', { x: num(d.x, 1), y: num(d.y, 1) })}${t(d.moving ? 'mirror_moving' : 'mirror_rest')}${d.airborne ? t('mirror_airborne') : ''}.</li>`);
+    const stocks = Object.entries(summary.stock).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${toolName(k)}`).join(', ');
+    parts.push(`<li>${t('mirror_tools', { list: stocks || t('mirror_none') })}</li>`);
+    const armed = summary.tools.filter(tl => tl.status === 'armed');
+    if (armed.length) parts.push(`<li>${t('mirror_armed', { list: armed.map(tl => toolName(tl.type)).join(', ') })}</li>`);
+    for (const g of goals ?? summary.goals) {
+      const status = g.done ? t('prog_done') : (goals ? goalProgressLabel(g) || t('prog_notYet') : g.progress);
+      parts.push(`<li>${t('mirror_goal', { label: t(g.primary ? 'mirror_main' : 'mirror_bonus'), text: goals ? goalText(g) : g.type, status })}</li>`);
     }
-    parts.push(`<li>Score: ${summary.score}.</li>`);
-    if (summary.phase === 'terminal') parts.push(`<li>Round over: ${summary.terminalReason}.</li>`);
+    parts.push(`<li>${t('mirror_score', { n: summary.score })}</li>`);
+    if (summary.phase === 'terminal') parts.push(`<li>${t('mirror_over', { reason: reasonText(summary.terminalReason) })}</li>`);
     this.el.innerHTML = `<ul>${parts.join('')}</ul>`;
   }
 
@@ -81,43 +85,26 @@ export function objectiveText(level) {
 
 export function goalText(g) {
   switch (g.type) {
-    case 'bell': return `Ring the bell fast enough (${(g.minSpeed ?? 1).toFixed(1)} m/s impact)`;
-    case 'zone': return 'Hold the dummy inside the chalk circle';
-    case 'distance': return `Send the dummy ${g.dist} metres from home`;
-    case 'topple': return `Topple ${g.count} crate${g.count > 1 ? 's' : ''}`;
-    case 'air': return `Keep the dummy airborne for ${(g.ticks / 120).toFixed(1)} seconds total`;
-    case 'speed': return `Reach ${g.value2} m/s with the dummy`;
-    case 'score': return `Score ${g.value2} points`;
+    case 'bell': return t('goal_bell', { speed: num(g.minSpeed ?? 1, 1) });
+    case 'zone': return t('goal_zone');
+    case 'distance': return t('goal_distance', { n: g.dist });
+    case 'topple': return g.count > 1 ? t('goal_topple', { n: g.count }) : t('goal_topple1');
+    case 'air': return t('goal_air', { s: num(g.ticks / 120, 1) });
+    case 'speed': return t('goal_speed', { n: g.value2 });
+    case 'score': return t('goal_score', { n: g.value2 });
     default: return g.type;
   }
 }
 
 export function goalProgressLabel(g) {
   switch (g.type) {
-    case 'bell': return g.done ? 'Rung!' : g.best > 0.05 ? `best ${g.best.toFixed(1)} m/s` : '';
-    case 'zone': return g.done ? 'Held!' : g.value > 0 ? `${Math.round(100 * g.value / g.holdTicks)}%` : '';
-    case 'distance': return `${g.value.toFixed(1)}/${g.dist} m`;
+    case 'bell': return g.done ? t('prog_rung') : g.best > 0.05 ? t('prog_best', { n: num(g.best, 1) }) : '';
+    case 'zone': return g.done ? t('prog_held') : g.value > 0 ? `${Math.round(100 * g.value / g.holdTicks)}%` : '';
+    case 'distance': return `${num(g.value, 1)}/${g.dist} m`;
     case 'topple': return `${g.value}/${g.count}`;
-    case 'air': return `${(g.value / 120).toFixed(1)}/${(g.ticks / 120).toFixed(1)} s`;
-    case 'speed': return `${g.value.toFixed(1)}/${g.value2} m/s`;
+    case 'air': return `${num(g.value / 120, 1)}/${num(g.ticks / 120, 1)} s`;
+    case 'speed': return `${num(g.value, 1)}/${g.value2} m/s`;
     case 'score': return `${g.value}/${g.value2}`;
-    default: return g.done ? 'done' : '';
+    default: return g.done ? t('prog_done') : '';
   }
 }
-
-export const INVALID_TEXT = {
-  'terminal-state': 'The round is over.',
-  'duplicate-command': 'Already registered — no double commits.',
-  'bad-command': 'That command made no sense.',
-  'out-of-stock': 'None of that tool left in the tray.',
-  'out-of-bounds': 'Outside the workshop bounds.',
-  'no-mount': 'Pistons need a wall mount — aim for the glowing brackets.',
-  'mount-occupied': 'That mount already has a piston.',
-  'not-on-ground': 'Boing Pads must snap onto a floor or ledge.',
-  'overlap': 'Too close to something else — give it room.',
-  'no-such-tool': 'That tool is gone.',
-  'already-spent': 'Already used up.',
-  'unsupported-here': 'Not allowed in this mode.',
-  'no-undo': 'Nothing to undo here.',
-  'nothing-to-skip': 'Everything is already settled.',
-};

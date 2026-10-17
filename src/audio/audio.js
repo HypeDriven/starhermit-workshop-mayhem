@@ -110,7 +110,8 @@ export class AudioSystem {
   }
 
   onCaption(cb) { this.captionCb = cb; }
-  caption(text) { this.captionCb?.(text); }
+  // `key` is a captions-group id in the string tables (main.js localizes it)
+  caption(key) { this.captionCb?.(key); }
 
   // --- synth primitives --------------------------------------------------------
   env(gainNode, t0, a, peak, d, sustain = 0) {
@@ -197,12 +198,12 @@ export class AudioSystem {
     if (!this.started) return;
     const sample = this.sampleFor(ev);
     if (sample && this.playSample(sample, ev.bus ?? 'effects')) {
-      if (ev.t === 'place') this.caption('placing tool');
-      if (ev.t === 'trigger') this.caption('triggered!');
-      if (ev.t === 'boing') this.caption('boing!');
-      if (ev.t === 'bell') this.caption(ev.done ? 'bell rung!' : 'bell tapped');
-      if (ev.t === 'goal') this.caption('goal complete!');
-      if (ev.t === 'achievement') this.caption('achievement unlocked!');
+      if (ev.t === 'place') this.caption('place');
+      if (ev.t === 'trigger') this.caption('trigger');
+      if (ev.t === 'boing') this.caption('boing');
+      if (ev.t === 'bell') this.caption(ev.done ? 'bellRung' : 'bellTapped');
+      if (ev.t === 'goal') this.caption('goal');
+      if (ev.t === 'achievement') this.caption('achievement');
       return;
     }
     const t = this.ctx.currentTime;
@@ -218,12 +219,12 @@ export class AudioSystem {
       case 'place':
         this.noise(t, 0.08, 'effects', 0.12, 900);
         this.osc('sine', 300, t, 0.1, 'effects', 0.12, 180);
-        this.caption('placing tool');
+        this.caption('place');
         break;
       case 'trigger':
         this.noise(t, 0.12, 'effects', 0.18, 1600, 1.5);
         this.osc('square', 180, t, 0.14, 'effects', 0.1, 90);
-        this.caption('triggered!');
+        this.caption('trigger');
         break;
       case 'impact': {
         const s = Math.min(ev.speed ?? 2, 14);
@@ -235,7 +236,7 @@ export class AudioSystem {
       case 'boing':
         this.osc('sine', 240 * v, t, 0.22, 'effects', 0.2, 720);
         this.osc('triangle', 480 * v, t + 0.03, 0.16, 'effects', 0.1, 960);
-        this.caption('boing!');
+        this.caption('boing');
         break;
       case 'bell': {
         // FM-ish bell: carrier + partials with long decay
@@ -243,12 +244,12 @@ export class AudioSystem {
         for (const [mult, peak, dur] of [[1, 0.22, 1.4], [2.4, 0.1, 0.9], [3.9, 0.05, 0.5]]) {
           this.osc('sine', f0 * mult, t, dur, 'effects', peak * (ev.done ? 1.2 : 0.7));
         }
-        this.caption(ev.done ? 'bell rung!' : 'bell tapped');
+        this.caption(ev.done ? 'bellRung' : 'bellTapped');
         break;
       }
       case 'goal':
         [523, 659, 784].forEach((f, i) => this.osc('triangle', f, t + i * 0.07, 0.24, 'effects', 0.14));
-        this.caption('goal complete!');
+        this.caption('goal');
         break;
       case 'win-pending':
         [392, 523, 659, 784].forEach((f, i) => this.osc('triangle', f, t + i * 0.09, 0.3, 'music', 0.1));
@@ -279,7 +280,7 @@ export class AudioSystem {
         break;
       case 'achievement':
         [784, 988, 1175].forEach((f, i) => this.osc('sine', f, t + i * 0.08, 0.3, 'voice', 0.1));
-        this.caption('achievement unlocked!');
+        this.caption('achievement');
         break;
       case 'results':
         this.osc('triangle', 523, t, 0.2, 'voice', 0.1);
@@ -336,7 +337,7 @@ export class AudioSystem {
       case 'hint':
         this.osc('sine', 1046, t, 0.12, 'voice', 0.08);
         this.osc('sine', 1568, t + 0.09, 0.16, 'voice', 0.07);
-        this.caption('hint shown');
+        this.caption('hint');
         break;
       case 'round-start':
         this.noise(t, 0.15, 'effects', 0.1, 1800, 1, 'highpass');
@@ -345,7 +346,7 @@ export class AudioSystem {
         break;
       case 'new-record':
         [659, 784, 988, 1319].forEach((f, i) => this.osc('sine', f, t + i * 0.07, 0.3, 'voice', 0.1));
-        this.caption('new record!');
+        this.caption('record');
         break;
     }
   }

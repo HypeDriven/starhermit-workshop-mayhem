@@ -41,6 +41,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stubStarHermit, launchToken } from './starhermit-e2e.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOT = (stage, vp) => `/tmp/workshop-mayhem-e2e-${stage}-${vp}.png`;
@@ -365,6 +366,124 @@ async function runPass(browser, name, ctxOpts, { full }) {
   console.log(`ok - ${name}: no page errors`);
 }
 
+// ---------- language: account preference, live switch, report ----------
+// Signed in through a stubbed StarHermit API: Automatic follows the account's
+// preferredLanguage (fr-CA); choosing a language in Settings re-renders the
+// open screen in place and saves ui.language; Report a problem posts; a
+// mid-round switch from the pause menu relabels the HUD without restarting.
+async function runLanguage(browser, name, ctxOpts) {
+  const errors = [];
+  const context = await browser.newContext(ctxOpts);
+  const page = await context.newPage();
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => {
+    if (!['error', 'warning'].includes(m.type()) || browserNoise.test(m.text())) return;
+    errors.push(`console ${m.type()}: ${m.text()}`);
+  });
+  const touch = !!ctxOpts.hasTouch;
+  const tap = (sel) => press(page, sel, touch);
+  try {
+    const calls = await stubStarHermit(page, { preferredLanguage: 'fr-CA' });
+    await page.goto('about:blank');
+    await page.goto(BASE + '/index.html#game_token=' + launchToken(), { waitUntil: 'load' });
+    await page.waitForFunction(() => window.app?.state === 'title', null, { timeout: 20000 });
+    await page.waitForFunction(() => document.documentElement.lang === 'fr-CA', null, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('#screen-root [data-act="settings"]')?.textContent === 'Paramètres');
+    ok(`${name}: Automatic follows the account language (fr-CA title)`);
+
+    await tap('#screen-root [data-act="settings"]');
+    await page.waitForSelector('#screen-root.screen-settings');
+    const choice = page.locator('#gfx-card [data-game-language="choice"]');
+    await choice.scrollIntoViewIfNeeded();
+    const auto = (await choice.locator('option').first().textContent()).trim();
+    if (auto !== 'Automatique — Français (Canada)') throw new Error(`Automatic label not resolved: "${auto}"`);
+    if ((await page.locator('[data-game-language="choice"]').count()) !== 1) throw new Error('expected exactly one language selector');
+    await choice.selectOption('it-IT');
+    await page.waitForFunction(() => document.documentElement.lang === 'it-IT');
+    await page.waitForFunction(() => /Salvato/.test(document.querySelector('[data-game-language="status"]').textContent));
+    if (calls.settings['ui.language']?.choice !== 'it-IT') throw new Error('ui.language not saved: ' + JSON.stringify(calls.settings));
+    const rel = await page.evaluate(() => ({
+      h: document.querySelector('#screen-root h1').textContent,
+      gfx: document.querySelector('#gfx-own h2').textContent,
+      rm: document.querySelector('[data-i18n="acc_reducedMotion"]').textContent,
+      back: document.querySelector('#screen-root [data-act="back"]').textContent,
+      same: !!document.querySelector('#gfx-card [data-game-language="choice"]'),
+    }));
+    if (rel.h !== 'Impostazioni' || rel.gfx !== 'Grafica' || !/^Movimento ridotto/.test(rel.rm) || rel.back !== '← Indietro' || !rel.same) {
+      throw new Error('Settings not re-rendered in place: ' + JSON.stringify(rel));
+    }
+    ok(`${name}: Italian chosen in Settings — relabelled in place, ui.language saved`);
+    await page.locator('[data-game-report="title"]').scrollIntoViewIfNeeded();
+    await page.fill('[data-game-report="title"]', 'Test report');
+    await tap('[data-game-report="send"]');
+    await page.waitForFunction(() => /Grazie/.test(document.querySelector('[data-game-report="status"]').textContent));
+    if (!calls.reports?.[0] || calls.reports[0].kind !== 'bug') throw new Error('report not posted');
+    await page.screenshot({ path: SHOT('language', name) });
+    ok(`${name}: Report a problem posted to /reports`);
+
+    // German Journey round
+    await choice.selectOption('de-DE');
+    await page.waitForFunction(() => document.documentElement.lang === 'de-DE');
+    await page.locator('#screen-root [data-act="back"]').scrollIntoViewIfNeeded();
+    await tap('#screen-root [data-act="back"]');
+    await page.waitForSelector('#screen-root.screen-title');
+    if ((await page.textContent('#screen-root [data-act="play"]')).trim() !== '▶ Spielen') throw new Error('title not German');
+    await tap('#screen-root [data-act="play"]');
+    await page.waitForSelector('#screen-root.screen-modes');
+    await tap('#screen-root [data-act="journey"]');
+    await page.waitForSelector('#screen-root.screen-journey');
+    await tap('[data-level="j01"]');
+    await waitActive(page);
+    const hud = await page.evaluate(() => ({
+      title: document.querySelector('#objective-card h2').textContent,
+      hint: document.querySelector('#btn-hint').textContent.trim(),
+      tool: document.querySelector('#tool-tray [data-tool="piston"] .tool-name').textContent,
+    }));
+    if (hud.title !== 'Weck den Dummy' || !/Tipp/.test(hud.hint) || hud.tool !== 'Kolben') throw new Error('HUD not German: ' + JSON.stringify(hud));
+    const layout = await page.evaluate(() => {
+      const vis = (e) => e && e.offsetParent !== null && !e.classList.contains('hidden');
+      const r = (e) => e.getBoundingClientRect();
+      const overlap = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+      const cut = [...document.querySelectorAll('#hud-root .hud-top *, #hud-root .hud-bottom *')].filter(vis)
+        .filter((e) => r(e).right > innerWidth + 1 || r(e).left < -1).map((e) => e.id || e.className);
+      const top = r(document.querySelector('#hud-root .hud-top'));
+      const bottom = r(document.querySelector('#hud-root .hud-bottom'));
+      const buttons = [...document.querySelectorAll('#context-actions .action-btn')].filter(vis);
+      const btnCut = buttons.filter((b) => b.scrollWidth > b.clientWidth + 1).map((b) => b.id);
+      return { cut, clash: overlap(top, bottom), btnCut, scrollX: document.documentElement.scrollWidth > innerWidth };
+    });
+    if (layout.cut.length || layout.clash || layout.btnCut.length || layout.scrollX) throw new Error('German HUD layout problem: ' + JSON.stringify(layout));
+    await page.screenshot({ path: SHOT('german-play', name) });
+    ok(`${name}: German round — HUD in German ("${hud.title}"), nothing cut off or overlapping`);
+
+    // back to Automatic mid-round from the pause menu; the round continues
+    const before = await readState(page);
+    await tap('#btn-pause');
+    await page.waitForSelector('#overlay-root.overlay-pause', { state: 'visible' });
+    if ((await page.textContent('#overlay-root h1')).trim() !== 'Pausiert') throw new Error('pause not German');
+    await tap('#overlay-root [data-act="settings"]');
+    await page.waitForSelector('#screen-root.screen-settings');
+    await choice.scrollIntoViewIfNeeded();
+    await choice.selectOption('auto');
+    await page.waitForFunction(() => document.documentElement.lang === 'fr-CA');
+    await page.locator('#screen-root [data-act="back"]').scrollIntoViewIfNeeded();
+    await tap('#screen-root [data-act="back"]');
+    await page.waitForSelector('#overlay-root.overlay-pause', { state: 'visible' });
+    if ((await page.textContent('#overlay-root h1')).trim() !== 'En pause') throw new Error('pause not relabelled to French');
+    await tap('#overlay-root [data-act="resume"]');
+    await waitActive(page);
+    const after = await readState(page);
+    if (after.levelId !== before.levelId || after.tick < before.tick) throw new Error('round restarted on language change');
+    const hint = (await page.textContent('#btn-hint')).trim();
+    if (!/Indice/.test(hint) || (await page.textContent('#objective-card h2')) !== 'Réveillez le mannequin') throw new Error('HUD not relabelled: ' + hint);
+    ok(`${name}: Automatic again mid-round — HUD and pause in fr-CA, same round continues`);
+  } finally {
+    await context.close();
+  }
+  if (errors.length) throw new Error(`${name} language pass had page errors:\n  ${errors.join('\n  ')}`);
+  console.log(`ok - ${name}: language pass, no page errors`);
+}
+
 // ---------- main ----------
 let browser = null;
 try {
@@ -376,6 +495,8 @@ try {
   await runPass(browser, 'desktop', { viewport: { width: 1280, height: 800 } }, { full: true });
   await runPass(browser, 'mobile',
     { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }, { full: false });
+  await runLanguage(browser, 'desktop', { viewport: { width: 1280, height: 800 } });
+  await runLanguage(browser, 'mobile', { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   console.log('\nE2E PASS — workshop-mayhem, desktop + mobile, no page errors');
 } catch (e) {
   failures++;

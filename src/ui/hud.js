@@ -1,8 +1,11 @@
 // Play HUD: objective card, live score, tool tray, context actions, tutorial
 // card, trigger chips projected onto world targets (single shared layout
 // model: DOM labels align with projected Three.js targets, spec §3).
-import { TOOLS } from '../rules/engine.js';
-import { objectiveText, goalProgressLabel, INVALID_TEXT } from './a11y.js';
+import { objectiveText, goalProgressLabel } from './a11y.js';
+import { t, applyDom, levelName, levelIntro, stepText, toolName, toolShort, invalidText } from './i18n.js';
+
+const translate = t; // `t` is shadowed by trigger loops below
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const TOOL_ICONS = {
   piston: '🥊', pad: '🟢', fan: '🌀', magnet: '🧲', weight: '🏋️',
@@ -16,24 +19,24 @@ export class Hud {
     this.onAction = onAction;
     this.announce = announce;
     this.root.innerHTML = `
-      <section class="hud-top" aria-label="Round status">
+      <section class="hud-top" aria-label="${t('roundStatus')}" data-i18n-aria="roundStatus">
         <div class="objective-card card" id="objective-card"></div>
         <div class="status-card card">
-          <div class="status-score"><span id="hud-score">0</span><label>score</label></div>
-          <div class="status-time"><span id="hud-time">0:00</span><label>time</label></div>
-          <div class="status-stars" id="hud-stars" aria-label="Star targets"></div>
-          <button class="icon-btn" id="btn-pause" aria-label="Pause">⏸</button>
+          <div class="status-score"><span id="hud-score">0</span><label data-i18n="hudScore">${t('hudScore')}</label></div>
+          <div class="status-time"><span id="hud-time">0:00</span><label data-i18n="hudTime">${t('hudTime')}</label></div>
+          <div class="status-stars" id="hud-stars" aria-label="${t('starTargets')}" data-i18n-aria="starTargets"></div>
+          <button class="icon-btn" id="btn-pause" aria-label="${t('pause')}" data-i18n-aria="pause">⏸</button>
         </div>
       </section>
       <div class="tutorial-card card hidden" id="tutorial-card" role="status"></div>
       <div class="hud-bottom">
-        <div class="tool-tray card" id="tool-tray" role="toolbar" aria-label="Tool tray"></div>
+        <div class="tool-tray card" id="tool-tray" role="toolbar" aria-label="${t('toolTray')}" data-i18n-aria="toolTray"></div>
         <div class="context-actions" id="context-actions">
-          <button class="action-btn primary hidden" id="btn-trigger">⚡ Trigger <kbd>Space</kbd></button>
-          <button class="action-btn hidden" id="btn-skip">⏩ Settle <kbd>S</kbd></button>
-          <button class="action-btn hidden" id="btn-undo">↩ Undo <kbd>U</kbd></button>
-          <button class="action-btn" id="btn-hint">💡 Hint <kbd>H</kbd></button>
-          <button class="action-btn" id="btn-restart">🔁 Restart <kbd>R</kbd></button>
+          <button class="action-btn primary hidden" id="btn-trigger">${t('trigger')} <kbd>Space</kbd></button>
+          <button class="action-btn hidden" id="btn-skip"><span data-i18n="settle">${t('settle')}</span> <kbd>S</kbd></button>
+          <button class="action-btn hidden" id="btn-undo"><span data-i18n="undo">${t('undo')}</span> <kbd>U</kbd></button>
+          <button class="action-btn" id="btn-hint"><span data-i18n="hint">${t('hint')}</span> <kbd>H</kbd></button>
+          <button class="action-btn" id="btn-restart"><span data-i18n="restart">${t('restart')}</span> <kbd>R</kbd></button>
         </div>
       </div>
       <div class="trigger-chips" id="trigger-chips" aria-hidden="true"></div>
@@ -68,16 +71,9 @@ export class Hud {
   }
 
   buildLevel(level, mode) {
-    const { main, bonus } = objectiveText(level);
-    this.$('#objective-card').innerHTML = `
-      <h2>${level.name}</h2>
-      <p class="objective-main">🎯 ${main}</p>
-      ${bonus.map(b => `<p class="objective-bonus">✦ ${b}</p>`).join('')}
-      <div class="goal-progress" id="goal-progress"></div>
-      ${level.intro && mode !== 'journey' ? `<p class="objective-intro">${level.intro}</p>` : ''}`;
-    const par = level.par;
-    this.$('#hud-stars').innerHTML = par
-      ? `<span title="2-star target">★★ ${par.score}</span><span title="3-star target">★★★ ${par.star3}</span>` : '';
+    this.level = level;
+    this.mode = mode;
+    this.renderObjective();
     this.buildTray(level);
     this.$('#tutorial-card').classList.toggle('hidden', !level.tutorial);
     this.chips.forEach(c => c.remove());
@@ -85,6 +81,39 @@ export class Hud {
     this.lastScore = -1;
     this.lastTime = -1;
     this.lastArmed = -1;
+  }
+
+  renderObjective() {
+    const level = this.level;
+    if (!level) return;
+    const { main, bonus } = objectiveText(level);
+    const intro = levelIntro(level);
+    this.$('#objective-card').innerHTML = `
+      <h2>${esc(levelName(level))}</h2>
+      <p class="objective-main">🎯 ${esc(main)}</p>
+      ${bonus.map(b => `<p class="objective-bonus">✦ ${esc(b)}</p>`).join('')}
+      <div class="goal-progress" id="goal-progress"></div>
+      ${intro && this.mode !== 'journey' ? `<p class="objective-intro">${esc(intro)}</p>` : ''}`;
+    const par = level.par;
+    this.$('#hud-stars').innerHTML = par
+      ? `<span title="${esc(t('star2'))}">★★ ${par.score}</span><span title="${esc(t('star3'))}">★★★ ${par.star3}</span>` : '';
+  }
+
+  // Language change mid-round: relabel everything in place (stock, selection,
+  // chips and the tutorial position are kept).
+  relocalize(tutorialIndex) {
+    applyDom(this.root);
+    if (!this.level) return;
+    this.renderObjective();
+    for (const [tool, btn] of this.trayButtons ?? []) {
+      btn.querySelector('.tool-name').textContent = toolShort(tool);
+      btn.dataset.label = toolName(tool);
+    }
+    this.lastArmed = -1;
+    this.lastScore = -1;
+    for (const [, chip] of this.chips) chip.setAttribute('aria-label', t('triggerTool', { tool: toolName(chip.dataset.type) }));
+    if (this.level.tutorial && tutorialIndex != null) this.tutorialStep(this.level, tutorialIndex);
+    if (this.countdownValue != null) this.countdown(this.countdownValue);
   }
 
   buildTray(level) {
@@ -97,10 +126,10 @@ export class Hud {
       const btn = document.createElement('button');
       btn.className = 'tool-btn';
       btn.dataset.tool = tool;
-      btn.setAttribute('aria-label', `${TOOLS[tool].name}${count ? `, ${count} available` : ', out of stock'}`);
+      btn.dataset.label = toolName(tool);
       btn.innerHTML = `
         <span class="tool-icon">${TOOL_ICONS[tool]}</span>
-        <span class="tool-name">${TOOLS[tool].name.split(' ')[0]}</span>
+        <span class="tool-name">${esc(toolShort(tool))}</span>
         <span class="tool-stock" data-stock>${count}</span>
         ${count ? `<kbd>${TOOL_KEYS[keyIdx++]}</kbd>` : ''}`;
       btn.addEventListener('click', () => this.onAction('select-tool', tool));
@@ -139,6 +168,8 @@ export class Hud {
     for (const [tool, btn] of this.trayButtons ?? []) {
       const n = s.stock[tool] ?? 0;
       btn.querySelector('[data-stock]').textContent = n;
+      const label = n > 0 ? t('toolAvailable', { tool: btn.dataset.label, n }) : t('toolOut', { tool: btn.dataset.label });
+      if (btn.getAttribute('aria-label') !== label) btn.setAttribute('aria-label', label);
       btn.classList.toggle('depleted', n <= 0);
       btn.classList.toggle('selected', input.selectedTool === tool);
       btn.setAttribute('aria-pressed', input.selectedTool === tool ? 'true' : 'false');
@@ -151,7 +182,7 @@ export class Hud {
     if (armedCount !== this.lastArmed) {
       this.lastArmed = armedCount;
       const btn = this.$('#btn-trigger');
-      btn.textContent = armedCount > 1 ? `⚡ Trigger (${armedCount} armed) ` : '⚡ Trigger ';
+      btn.textContent = `${armedCount > 1 ? t('triggerArmed', { n: armedCount }) : t('trigger')} `;
       btn.appendChild(kbdEl('Space'));
     }
     this.$('#btn-skip').classList.toggle('hidden', !legal?.skip);
@@ -167,7 +198,8 @@ export class Hud {
           chip = document.createElement('button');
           chip.className = 'trigger-chip';
           chip.textContent = '⚡';
-          chip.setAttribute('aria-label', `Trigger ${t.type}`);
+          chip.dataset.type = t.type;
+          chip.setAttribute('aria-label', translate('triggerTool', { tool: toolName(t.type) }));
           chip.addEventListener('click', () => this.onAction('trigger-tool', t.toolId));
           chipsEl.appendChild(chip);
           this.chips.set(t.toolId, chip);
@@ -187,7 +219,7 @@ export class Hud {
   }
 
   showInvalid(reason) {
-    const text = INVALID_TEXT[reason] ?? reason;
+    const text = invalidText(reason);
     this.announce?.(text, 'assertive');
     const stack = this.$('#toast-stack');
     const toast = document.createElement('div');
@@ -203,19 +235,20 @@ export class Hud {
     const card = this.$('#tutorial-card');
     const steps = level.tutorial?.steps ?? [];
     if (index >= steps.length) {
-      card.innerHTML = `<strong>Lesson complete!</strong> Finish the goal to pass.`;
+      card.innerHTML = `<strong>${esc(t('lessonComplete'))}</strong> ${esc(t('lessonFinish'))}`;
       return;
     }
     card.innerHTML = `
-      <div class="tutorial-text">${steps[index].text}</div>
+      <div class="tutorial-text">${esc(stepText(level, index))}</div>
       <div class="tutorial-dots">${steps.map((_, i) => `<span class="dot ${i < index ? 'done' : i === index ? 'now' : ''}"></span>`).join('')}</div>`;
   }
 
   countdown(n) {
     const el = this.$('#countdown');
+    this.countdownValue = n;
     if (n === null) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
-    el.textContent = n > 0 ? n : 'Go!';
+    el.textContent = n > 0 ? n : t('go');
   }
 }
 
