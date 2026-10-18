@@ -4,11 +4,14 @@ import * as THREE from 'three';
 
 // tiny procedural canvas texture helper (wood grain / fabric weave). The
 // detailed variant doubles the resolution and adds knots and fine grain noise.
-function makeTexture(kind, base, accent, detailed = false) {
+// Drawn in the authored space (256 detailed / 128 plain) at `px` real pixels (the preset's texture budget).
+function makeTexture(kind, base, accent, detailed = false, px = detailed ? 256 : 128) {
   const size = detailed ? 256 : 128;
+  const real = detailed ? px : Math.min(128, px);
   const c = document.createElement('canvas');
-  c.width = c.height = size;
+  c.width = c.height = real;
   const g = c.getContext('2d');
+  if (real !== size) g.scale(real / size, real / size);
   g.fillStyle = base;
   g.fillRect(0, 0, size, size);
   g.strokeStyle = accent;
@@ -72,9 +75,9 @@ function addDetail(g, kind, size) {
 }
 
 const texCache = new Map();
-function tex(kind, base, accent, detailed = false) {
-  const key = `${kind}:${base}:${accent}:${detailed ? 'd' : 'p'}`;
-  if (!texCache.has(key)) texCache.set(key, makeTexture(kind, base, accent, detailed));
+function tex(kind, base, accent, detailed = false, px) {
+  const key = `${kind}:${base}:${accent}:${detailed ? 'd' : 'p'}:${px}`;
+  if (!texCache.has(key)) texCache.set(key, makeTexture(kind, base, accent, detailed, px));
   return texCache.get(key);
 }
 
@@ -84,29 +87,45 @@ export class MaterialFactory {
   // rich: physically based extras (clearcoat varnish on wood and metal, fabric
   // sheen on plush) that pay off when the scene has an environment map.
   // detailed: higher-resolution procedural textures with knots and grain.
-  constructor(theme, { rich = false, detailed = false } = {}) {
+  // shading: the preset's model (gfx.js BUDGETS) — 'lambert' (Low: PBR terms dropped, colour, map and
+  // emission kept), 'standard' (Balanced) or 'physical' (High/Ultra: the rich extras when `rich`).
+  // texture: the preset's procedural texture size in px.
+  constructor(theme, { rich = false, detailed = false, shading = 'physical', texture = 256, segments = 1 } = {}) {
     this.theme = theme;
+    this.segments = segments;
     this.rich = rich;
     this.detailed = detailed;
+    this.shading = shading;
+    this.texture = texture;
     this.owned = [];
   }
 
+  /** Curved-geometry segment count scaled by the preset's budget. */
+  seg(n, min = 3) { return Math.max(min, Math.round(n * this.segments)); }
+
+  _lambert(params) {
+    const p = {};
+    for (const k of ['color', 'map', 'emissive', 'emissiveIntensity', 'transparent', 'opacity', 'side', 'depthWrite']) if (params[k] !== undefined) p[k] = params[k];
+    return new THREE.MeshLambertMaterial(p);
+  }
+
   make(params) {
-    const m = new THREE.MeshStandardMaterial(params);
+    const m = this.shading === 'lambert' ? this._lambert(params) : new THREE.MeshStandardMaterial(params);
     this.owned.push(m);
     return m;
   }
 
-  // Physical when rich, plain Standard otherwise (the extras are dropped)
+  // Physical when rich (High/Ultra), plain Standard otherwise (the extras are dropped), Lambert on Low
   makeRich(params, extras) {
-    const m = this.rich
-      ? new THREE.MeshPhysicalMaterial({ ...params, ...extras })
-      : new THREE.MeshStandardMaterial(params);
+    const m = this.shading === 'lambert' ? this._lambert(params)
+      : this.rich && this.shading === 'physical'
+        ? new THREE.MeshPhysicalMaterial({ ...params, ...extras })
+        : new THREE.MeshStandardMaterial(params);
     this.owned.push(m);
     return m;
   }
 
-  tex(kind, base, accent) { return tex(kind, base, accent, this.detailed); }
+  tex(kind, base, accent) { return tex(kind, base, accent, this.detailed, this.texture); }
 
   floorMat(alt = false) {
     const t = this.theme;

@@ -18,7 +18,7 @@ const EN = {
   adaptive: 'Adaptive resolution',
   showFps: 'Show frame rate',
   hint: 'Changes apply immediately and only affect how the workshop looks, never the rules.',
-  postFailed: 'Post-processing is unavailable on this device, so the workshop renders without it.',
+  postFailed: 'Post-processing is unavailable on this device, so the workshop renders without it.', level: 'Level {n}',
   s_noShadows: 'no shadows', s_shadows: '{n}² shadows', s_ao: 'ambient occlusion', s_aoFull: 'full ambient occlusion',
   s_reflections: 'reflections', s_bloom: 'bloom', s_noAA: 'no anti-aliasing',
 };
@@ -36,7 +36,7 @@ const STRINGS = {
     t_fxaa: 'FXAA', t_smaa: 'SMAA', t_msaa: 'MSAA', t_plain: 'Simple', t_detailed: 'Detallado',
     adaptive: 'Resolución adaptable', showFps: 'Mostrar FPS',
     hint: 'Los cambios se aplican al instante y solo afectan el aspecto del taller, nunca las reglas.',
-    postFailed: 'El posprocesamiento no está disponible en este dispositivo, así que el taller se muestra sin él.',
+    postFailed: 'El posprocesamiento no está disponible en este dispositivo, así que el taller se muestra sin él.', level: 'Nivel {n}',
     s_noShadows: 'sin sombras', s_shadows: 'sombras de {n}²', s_ao: 'oclusión ambiental', s_aoFull: 'oclusión ambiental completa',
     s_reflections: 'reflejos', s_bloom: 'resplandor', s_noAA: 'sin antialiasing',
   },
@@ -50,7 +50,7 @@ const STRINGS = {
     t_fxaa: 'FXAA', t_smaa: 'SMAA', t_msaa: 'MSAA', t_plain: 'Sencillo', t_detailed: 'Detallado',
     adaptive: 'Resolución adaptativa', showFps: 'Mostrar fotogramas por segundo',
     hint: 'Los cambios se aplican al momento y solo afectan al aspecto del taller, nunca a las reglas.',
-    postFailed: 'El posprocesado no está disponible en este dispositivo, así que el taller se muestra sin él.',
+    postFailed: 'El posprocesado no está disponible en este dispositivo, así que el taller se muestra sin él.', level: 'Nivel {n}',
     s_noShadows: 'sin sombras', s_shadows: 'sombras de {n}²', s_ao: 'oclusión ambiental', s_aoFull: 'oclusión ambiental completa',
     s_reflections: 'reflejos', s_bloom: 'resplandor', s_noAA: 'sin suavizado',
   },
@@ -64,7 +64,7 @@ const STRINGS = {
     t_fxaa: 'FXAA', t_smaa: 'SMAA', t_msaa: 'MSAA', t_plain: 'Schlicht', t_detailed: 'Detailliert',
     adaptive: 'Adaptive Auflösung', showFps: 'Bildrate anzeigen',
     hint: 'Änderungen gelten sofort und betreffen nur das Aussehen der Werkstatt, nie die Regeln.',
-    postFailed: 'Nachbearbeitung ist auf diesem Gerät nicht verfügbar; die Werkstatt wird ohne sie dargestellt.',
+    postFailed: 'Nachbearbeitung ist auf diesem Gerät nicht verfügbar; die Werkstatt wird ohne sie dargestellt.', level: 'Stufe {n}',
     s_noShadows: 'keine Schatten', s_shadows: '{n}²-Schatten', s_ao: 'Umgebungsverdeckung', s_aoFull: 'volle Umgebungsverdeckung',
     s_reflections: 'Spiegelungen', s_bloom: 'Bloom', s_noAA: 'keine Kantenglättung',
   },
@@ -78,7 +78,7 @@ const STRINGS = {
     t_fxaa: 'FXAA', t_smaa: 'SMAA', t_msaa: 'MSAA', t_plain: 'Simple', t_detailed: 'Détaillé',
     adaptive: 'Résolution adaptative', showFps: 'Afficher les images par seconde',
     hint: 'Les changements s’appliquent immédiatement et ne modifient que l’apparence de l’atelier, jamais les règles.',
-    postFailed: 'Le post-traitement n’est pas disponible sur cet appareil ; l’atelier s’affiche sans lui.',
+    postFailed: 'Le post-traitement n’est pas disponible sur cet appareil ; l’atelier s’affiche sans lui.', level: 'Niveau {n}',
     s_noShadows: 'sans ombres', s_shadows: 'ombres {n}²', s_ao: 'occlusion ambiante', s_aoFull: 'occlusion ambiante complète',
     s_reflections: 'reflets', s_bloom: 'halo', s_noAA: 'sans anticrénelage',
   },
@@ -92,7 +92,7 @@ const STRINGS = {
     t_fxaa: 'FXAA', t_smaa: 'SMAA', t_msaa: 'MSAA', t_plain: 'Simple', t_detailed: 'Détaillé',
     adaptive: 'Résolution adaptative', showFps: 'Afficher la fréquence d’images',
     hint: 'Les changements s’appliquent tout de suite et ne touchent que l’apparence de l’atelier, jamais les règles.',
-    postFailed: 'Le post-traitement n’est pas offert sur cet appareil; l’atelier s’affiche sans lui.',
+    postFailed: 'Le post-traitement n’est pas offert sur cet appareil; l’atelier s’affiche sans lui.', level: 'Niveau {n}',
     s_noShadows: 'sans ombres', s_shadows: 'ombres {n}²', s_ao: 'occlusion ambiante', s_aoFull: 'occlusion ambiante complète',
     s_reflections: 'reflets', s_bloom: 'halo', s_noAA: 'sans anticrénelage',
   },
@@ -106,7 +106,7 @@ const STRINGS = {
     t_fxaa: 'FXAA', t_smaa: 'SMAA', t_msaa: 'MSAA', t_plain: 'Simples', t_detailed: 'Detalhada',
     adaptive: 'Resolução adaptativa', showFps: 'Mostrar taxa de quadros',
     hint: 'As mudanças valem na hora e só afetam a aparência da oficina, nunca as regras.',
-    postFailed: 'O pós-processamento não está disponível neste aparelho, então a oficina é exibida sem ele.',
+    postFailed: 'O pós-processamento não está disponível neste aparelho, então a oficina é exibida sem ele.', level: 'Nível {n}',
     s_noShadows: 'sem sombras', s_shadows: 'sombras {n}²', s_ao: 'oclusão de ambiente', s_aoFull: 'oclusão de ambiente completa',
     s_reflections: 'reflexos', s_bloom: 'brilho', s_noAA: 'sem antisserrilhamento',
   },
@@ -120,7 +120,7 @@ const STRINGS = {
     t_fxaa: 'FXAA', t_smaa: 'SMAA', t_msaa: 'MSAA', t_plain: 'Semplice', t_detailed: 'Dettagliata',
     adaptive: 'Risoluzione adattiva', showFps: 'Mostra frame rate',
     hint: 'Le modifiche si applicano subito e cambiano solo l’aspetto dell’officina, mai le regole.',
-    postFailed: 'La post-elaborazione non è disponibile su questo dispositivo, quindi l’officina viene mostrata senza.',
+    postFailed: 'La post-elaborazione non è disponibile su questo dispositivo, quindi l’officina viene mostrata senza.', level: 'Livello {n}',
     s_noShadows: 'nessuna ombra', s_shadows: 'ombre {n}²', s_ao: 'occlusione ambientale', s_aoFull: 'occlusione ambientale completa',
     s_reflections: 'riflessi', s_bloom: 'bagliore', s_noAA: 'nessun antialiasing',
   },
@@ -155,7 +155,7 @@ export function summaryText(info, L) {
   };
   const r = info.resolved;
   const px = info.summary.match(/(\d+)×(\d+) px/);
-  return `${info.gpu} · ${describe(r, px ? [px[1], px[2]] : null, words)}`;
+  return [info.gpu, Number.isFinite(info.level) ? L.level.replace('{n}', info.level) : null, describe(r, px ? [px[1], px[2]] : null, words)].filter(Boolean).join(' · ');
 }
 
 /** Markup for the Graphics card. `saved` = settings.graphics; `info` = scene.graphicsInfo(). */

@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 
 export class Workshop {
-  constructor(scene, factory, theme, rng, { detail: detailSetting = 'detailed', particles = 'high' } = {}) {
+  constructor(scene, factory, theme, rng, { detail: detailSetting = 'detailed', particles = 'high', budget = null } = {}) {
+    this.budget = budget || { segments: 1, dust: 160 };
     this.factory = factory;
     this.theme = theme;
     this.group = new THREE.Group();
@@ -71,7 +72,7 @@ export class Workshop {
 
   // drifting dust motes caught in the lamp and window light (decorative)
   buildDust() {
-    const n = 160;
+    const n = this.budget.dust;
     const pos = new Float32Array(n * 3);
     this.dustSeed = new Float32Array(n * 4);
     for (let i = 0; i < n; i++) {
@@ -110,9 +111,9 @@ export class Workshop {
     }
     // instanced clutter: jars, boxes, gears, books
     const n = Math.floor(14 * detail);
-    const jarGeo = this.track(new THREE.CylinderGeometry(0.16, 0.18, 0.42, 10));
+    const jarGeo = this.track(new THREE.CylinderGeometry(0.16, 0.18, 0.42, F.seg(10, 6)));
     const boxGeo = this.track(new THREE.BoxGeometry(0.34, 0.3, 0.3));
-    const gearGeo = this.track(new THREE.TorusGeometry(0.17, 0.06, 8, 14));
+    const gearGeo = this.track(new THREE.TorusGeometry(0.17, 0.06, F.seg(8, 4), F.seg(14, 8)));
     const bookGeo = this.track(new THREE.BoxGeometry(0.1, 0.34, 0.26));
     const jarMat = F.make({ color: t.accent, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.75 });
     const boxMat = F.woodMat(t.floorAlt, 0.85);
@@ -201,13 +202,13 @@ export class Workshop {
     cord.position.set(0, -1.0, 0);
     this.lampPivot.add(cord);
     const shade = new THREE.Mesh(
-      this.track(new THREE.ConeGeometry(0.55, 0.5, 18, 1, true)),
+      this.track(new THREE.ConeGeometry(0.55, 0.5, this.factory.seg(18, 10), 1, true)),
       F.metalMat(t.accent, 0.5, 0.6),
     );
     shade.position.set(0, -2.0, 0);
     this.lampPivot.add(shade);
     const bulb = new THREE.Mesh(
-      this.track(new THREE.SphereGeometry(0.16, 12, 10)),
+      this.track(new THREE.SphereGeometry(0.16, this.factory.seg(12, 6), this.factory.seg(10, 5))),
       F.emissiveMat(t.lamp.color, 2.2),
     );
     bulb.position.set(0, -2.15, 0);

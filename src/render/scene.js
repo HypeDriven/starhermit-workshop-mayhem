@@ -18,7 +18,7 @@ import { LevelView, GhostPreview } from './props-view.js';
 import { ToolView, makeToolMesh } from './tools-view.js';
 import { VfxPool } from './vfx.js';
 import { CameraRig, FRAMING } from './camera.js';
-import { detectPreset, describe, migrate, resolve, SHADOW_MAP, PARTICLE_CAP } from './gfx.js';
+import { detectLevel, presetForLevel, describe, migrate, resolve, particleCap, SHADOW_MAP } from './gfx.js';
 import { themeById } from '../content/themes.js';
 import { BOUNDS } from '../content/schema.js';
 import { createStream } from '../rules/rng.js';
@@ -80,9 +80,16 @@ export class GameScene {
     this.onContextLoss = onContextLoss;
     this.paletteName = palette;
     this.gpu = probeGpu();
-    this.detected = detectPreset(this.gpu, { mobile: isMobileDevice() });
+    // StarHermit hardware level (gpu-level.js): renderer string + device facts (phone/tablet, cores, memory).
+    let sys = { mobile: isMobileDevice() };
+    try {
+      const G = globalThis.StarHermitGpu;
+      if (G) { const d = G.detectSystem(); sys = { ...d, mobile: sys.mobile || d.mobile }; delete sys.gpu; }
+    } catch { /* defaults */ }
+    this.gpuLevel = detectLevel(this.gpu, sys);
+    this.detected = presetForLevel(this.gpuLevel);
     this.gfxSaved = migrate(graphics);
-    this.q = resolve(this.gfxSaved, this.detected);
+    this.q = resolve(this.gfxSaved, this.detected, this.gpuLevel);
     this.adaptiveScale = 1;
     this._frames = [];
     this.fps = 0;
@@ -170,7 +177,7 @@ export class GameScene {
     this.levelGroup = new THREE.Group();
     this.fxGroup = new THREE.Group();
     this.scene.add(this.envGroup, this.levelGroup, this.fxGroup);
-    this.vfx = new VfxPool(this.fxGroup, PARTICLE_CAP[this.q.particles], t);
+    this.vfx = new VfxPool(this.fxGroup, particleCap(this.q), t);
     this.ghost = new GhostPreview(this.fxGroup, this.factory, t, this.stateColors);
     this.pickPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
     this.raycaster = new THREE.Raycaster();
@@ -184,6 +191,9 @@ export class GameScene {
     return new MaterialFactory(theme, {
       rich: this.q.reflections === 'on',
       detailed: this.q.detail === 'detailed',
+      shading: this.q.budget.material,
+      texture: this.q.budget.texture,
+      segments: this.q.budget.segments,
     });
   }
 
@@ -191,7 +201,7 @@ export class GameScene {
     if (this.workshop) this.workshop.dispose();
     const rng = createStream(this.theme.id.length * 7919 + 13);
     this.workshop = new Workshop(this.envGroup, this.factory, this.theme, rng, {
-      detail: this.q.detail, particles: this.q.particles,
+      detail: this.q.detail, particles: this.q.particles, budget: this.q.budget,
     });
   }
 
@@ -392,17 +402,18 @@ export class GameScene {
   setGraphics(saved) {
     const prev = this.q;
     this.gfxSaved = migrate(saved);
-    const q = resolve(this.gfxSaved, this.detected);
+    const q = resolve(this.gfxSaved, this.detected, this.gpuLevel);
     this.q = q;
     this.canvas.dataset.gfxPreset = q.preset;
     this.adaptiveScale = 1;
     this._frames = [];
     this.applyShadows();
     this.applyReflections();
-    this.vfx.setCap(PARTICLE_CAP[q.particles]);
+    this.vfx.setCap(particleCap(q));
     this._fpsVisible(q.showFps);
     this.postKey = null; // rebuild the post chain on the next frame
-    if (prev.reflections !== q.reflections || prev.detail !== q.detail || prev.particles !== q.particles) {
+    if (prev.reflections !== q.reflections || prev.detail !== q.detail || prev.particles !== q.particles
+      || JSON.stringify(prev.budget) !== JSON.stringify(q.budget)) {
       // materials / environment geometry depend on these: rebuild the look
       this.setTheme(this.theme.id);
     } else {
@@ -424,6 +435,7 @@ export class GameScene {
     return {
       gpu: this.gpu || 'unknown GPU',
       detected: this.detected,
+      level: this.gpuLevel,
       resolved: this.q,
       summary: describe(this.q, px),
       fps: Math.round(this.fps || 0),
@@ -453,7 +465,7 @@ export class GameScene {
     const q = this.q;
     if (!this._needsPost()) return 'none';
     const s = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-    return [q.ao, q.bloom, q.grade, q.antialias, s.x, s.y].join('|');
+    return [q.ao, q.bloom, q.grade, q.antialias, q.budget.bloomRes, q.budget.aoRes, s.x, s.y].join('|');
   }
 
   _buildPost() {
@@ -477,12 +489,12 @@ export class GameScene {
         ao.blendIntensity = 0.75;
         ao.updateGtaoMaterial({ radius: 0.55, distanceExponent: 2, thickness: 1.2, scale: 1.0, samples: q.ao === 'high' ? 16 : 8 });
         ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: q.ao === 'high' ? 8 : 4, rings: 2, samples: q.ao === 'high' ? 16 : 8 });
-        composer.addPass(ao);
+        composer.addPass(atScale(ao, q.budget.aoRes));
       }
       if (q.bloom === 'on') {
         // threshold on HDR (pre-tone-map) values: only the lamp bulb, window
         // glow and hot specular highlights bloom, never the lit dummy or UI
-        composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.4, 0.5, 1.05));
+        composer.addPass(atScale(new UnrealBloomPass(new THREE.Vector2(W, H), 0.4, 0.5, 1.05), q.budget.bloomRes));
       }
       composer.addPass(new OutputPass());
       if (q.grade === 'on') composer.addPass(new ShaderPass(GradeShader));
@@ -687,4 +699,13 @@ export class GameScene {
     this.renderFrame();
     return this.canvas.toDataURL('image/png');
   }
+}
+
+// Run a post pass at a fraction of the frame: EffectComposer.addPass/setSize hand every pass the full
+// frame size, so the pass's own setSize applies the budget's scale (half-res bloom/GTAO below Ultra).
+function atScale(pass, k) {
+  if (!(k < 1)) return pass;
+  const setSize = pass.setSize.bind(pass);
+  pass.setSize = (w, h) => setSize(Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
+  return pass;
 }

@@ -53,7 +53,7 @@ export class LevelView {
     for (const c of level.statics.circles) {
       const [x, y, r, matName] = c;
       const color = MAT_COLOR[MAT[matName ?? 'WOOD']]?.(t) ?? t.floorAlt;
-      const geo = this.track(new THREE.CylinderGeometry(r, r, 1.8, 20));
+      const geo = this.track(new THREE.CylinderGeometry(r, r, 1.8, F.seg(20, 10)));
       const m = new THREE.Mesh(geo, F.woodMat(color, 0.7));
       m.rotation.x = Math.PI / 2;
       m.position.set(x, y, -0.15);
@@ -89,7 +89,7 @@ export class LevelView {
       const f = i / 8;
       pts.push(new THREE.Vector2(0.05 + f * b.r * (0.6 + 0.55 * f), -b.r * 0.9 + f * b.r * 1.5));
     }
-    const geo = this.track(new THREE.LatheGeometry(pts, 18));
+    const geo = this.track(new THREE.LatheGeometry(pts, F.seg(18, 10)));
     const bell = new THREE.Mesh(geo, F.metalMat(t.bell, 0.25, 0.95));
     bell.castShadow = true;
     group.add(bell);
@@ -186,7 +186,7 @@ export class LevelView {
         this.crateMeshes[bi] = g;
         this.group.add(g);
       } else if (b.kind === 'ball' && !this.ballMeshes[bi]) {
-        const m = new THREE.Mesh(this.track(new THREE.SphereGeometry(0.24, 16, 12)), F.woodMat(t.accent, 0.6));
+        const m = new THREE.Mesh(this.track(new THREE.SphereGeometry(0.24, F.seg(16, 8), F.seg(12, 6))), F.woodMat(t.accent, 0.6));
         m.castShadow = true;
         this.ballMeshes[bi] = m;
         this.group.add(m);

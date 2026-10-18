@@ -39,6 +39,7 @@ export class VfxPool {
       map: softDot(), alphaTest: 0.02,
       depthWrite: false, sizeAttenuation: true,
     }));
+    geo.setDrawRange(0, this.cap); // only the budgeted part of the pool is drawn
     this.points.frustumCulled = false;
     this.points.renderOrder = 10;
     scene.add(this.points);
@@ -56,6 +57,7 @@ export class VfxPool {
     if (this.head >= this.cap) this.head = 0;
     for (let i = this.cap; i < MAX; i++) { this.p[i].life = 0; this.size[i] = 0; this.pos[i * 3 + 1] = -1000; }
     this.points.geometry.attributes.position.needsUpdate = true;
+    this.points.geometry.setDrawRange(0, this.cap);
   }
 
   emit(n, fn) {

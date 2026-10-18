@@ -1,21 +1,57 @@
 // Graphics quality model (src/render/gfx.js) + Graphics panel locale coverage.
 import { suite, ok, eq } from './harness.mjs';
-import {
-  PRESETS, CATEGORIES, detectPreset, resolve, presetTier, withPreset, describe, migrate,
-} from '../src/render/gfx.js';
+import { readFileSync } from 'node:fs';
+// src/render/gpu-level.js is a classic script in the page (window.StarHermitGpu); evaluate it the same way here.
+new Function('window', 'module', readFileSync(new URL('../src/render/gpu-level.js', import.meta.url), 'utf8'))(globalThis, undefined);
+const {
+  PRESETS, CATEGORIES, detectPreset, detectLevel, presetForLevel, budgetFor, particleCap, resolve, presetTier, withPreset, describe, migrate,
+  LEVELS, BUDGETS, PARTICLE_CAP, PARTICLE_MAX,
+} = await import('../src/render/gfx.js');
 import { GFX_LOCALES, gfxStrings, pickLocale } from '../src/ui/gfx-panel.js';
 
-suite('gfx: detectPreset from GPU strings', () => {
-  eq(detectPreset('ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)'), 'low', 'swiftshader');
-  eq(detectPreset('llvmpipe (LLVM 15.0.7, 256 bits)'), 'low', 'llvmpipe');
-  eq(detectPreset('ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 Direct3D11 vs_5_0 ps_5_0)'), 'high', 'geforce');
-  eq(detectPreset('Apple M2'), 'high', 'apple m');
-  eq(detectPreset('ANGLE (AMD, AMD Radeon RX 6800 XT)'), 'high', 'radeon rx');
-  eq(detectPreset('ANGLE (Intel, Intel(R) UHD Graphics 620)'), 'balanced', 'intel');
-  eq(detectPreset('Adreno (TM) 650'), 'balanced', 'adreno');
-  eq(detectPreset(''), 'balanced', 'unknown');
-  eq(detectPreset('Apple M2', { mobile: true }), 'balanced', 'mobile caps auto at balanced');
-  eq(detectPreset('SwiftShader', { mobile: true }), 'low', 'mobile keeps low');
+const DESK = { cores: 8, memoryGb: 8 };
+const PHONE = { mobile: true, cores: 8, memoryGb: 8 };
+
+suite('gfx: hardware level picks the Auto preset (Low 0, Balanced 4, High 10, Ultra 17)', () => {
+  eq(detectPreset('ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)', DESK), 'low', 'swiftshader');
+  eq(detectLevel('llvmpipe (LLVM 15.0.7, 256 bits)', DESK), 0, 'llvmpipe level 0');
+  eq(detectPreset('', DESK), 'low', 'no WebGL');
+  eq(detectPreset('ANGLE (AMD, AMD Radeon(TM) Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)', DESK), 'low', 'radeon igpu');
+  eq(detectPreset('ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11)', DESK), 'low', 'intel uhd');
+  eq(detectPreset('ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11)', DESK), 'balanced', 'iris xe');
+  eq(detectPreset('ANGLE (NVIDIA, NVIDIA GeForce GTX 1070 Direct3D11 vs_5_0 ps_5_0)', DESK), 'high', 'gtx 1070');
+  eq(detectPreset('ANGLE (NVIDIA, NVIDIA GeForce RTX 4080 Direct3D11 vs_5_0 ps_5_0)', DESK), 'ultra', 'rtx 4080');
+  eq(detectLevel('ANGLE (NVIDIA, NVIDIA GeForce RTX 5090 Direct3D11 vs_5_0 ps_5_0)', DESK), 20, 'rtx 5090 level');
+  eq(detectPreset('ANGLE (NVIDIA, NVIDIA GeForce RTX 5090 Direct3D11 vs_5_0 ps_5_0)', DESK), 'ultra', 'rtx 5090');
+  for (const [p, lv] of Object.entries(LEVELS)) eq(presetForLevel(lv), p, 'floor ' + p);
+  eq(presetForLevel(3), 'low', 'level 3');
+  eq(presetForLevel(16), 'high', 'level 16');
+});
+
+suite('gfx: phones and tablets are Balanced at most; software GPUs stay Low', () => {
+  eq(detectPreset('Adreno (TM) 740', PHONE), 'balanced', 'adreno 740');
+  ok(detectLevel('Adreno (TM) 740', PHONE) <= 9, 'phone capped at 9');
+  eq(detectPreset('Apple M2', PHONE), 'balanced', 'tablet');
+  eq(detectPreset('SwiftShader', PHONE), 'low', 'mobile software');
+});
+
+suite('gfx: per-preset budget table', () => {
+  const keys = ['material', 'texture', 'segments', 'dust', 'particles', 'bloomRes', 'aoRes'];
+  for (const p of PRESETS) for (const k of keys) ok(BUDGETS[p][k] !== undefined, `${p}.${k}`);
+  for (let i = 1; i < PRESETS.length; i++) {
+    for (const k of keys.slice(1)) ok(BUDGETS[PRESETS[i]][k] >= BUDGETS[PRESETS[i - 1]][k], `${PRESETS[i]}.${k} never cheaper`);
+  }
+  eq(PRESETS.map((p) => BUDGETS[p].material).join(), 'lambert,standard,physical,physical', 'shading per preset');
+  eq(PRESETS.map((p) => BUDGETS[p].bloomRes).join(), '0.5,0.5,0.5,1', 'half-res bloom below Ultra');
+  eq(budgetFor('balanced', 4).particles, BUDGETS.balanced.particles, 'floor level = table');
+  eq(budgetFor('balanced', 0).particles, BUDGETS.balanced.particles, 'forced preset keeps its budget');
+  ok(budgetFor('balanced', 7).particles > BUDGETS.balanced.particles, 'faster GPU, more particles');
+  const r = resolve({ preset: 'balanced' }, 'low', 4);
+  eq(r.level, 4, 'level carried');
+  eq(JSON.stringify(r.budget), JSON.stringify(budgetFor('balanced', 4)), 'resolved budget');
+  eq(particleCap(r), Math.round(PARTICLE_CAP.high * BUDGETS.balanced.particles), 'balanced particle cap');
+  ok(particleCap(resolve({ preset: 'ultra' }, 'low', 20)) <= PARTICLE_MAX, 'cap never exceeds the pool');
+  eq(resolve({}, 'low', 0).budget.material, 'lambert', 'headless Auto is Lambert Low');
 });
 
 suite('gfx: resolve presets, overrides and scale clamp', () => {
