@@ -1,49 +1,18 @@
-<!DOCTYPE html>
+<!doctype html>
+<!-- StarHermit web loader, written by starhermit package --web: it pins the engine by hash and holds no script of its own; package again rather than edit it. -->
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#2a2018" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="favicon.png">
 <title>Workshop Mayhem</title>
-<meta name="description" content="A physics toy: whimsical tools, one resilient training dummy, and a playful inventor's workshop." />
-<link rel="icon" type="image/png" href="favicon.png" />
-<link rel="apple-touch-icon" href="./icon.png" />
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>" />
-<link rel="stylesheet" href="./css/main.css" />
-<script src="game-options.js" data-game="workshop-mayhem"></script>
-<script type="importmap">
-{
-  "imports": {
-    "three": "./vendor/three.module.js",
-    "three/addons/": "./vendor/addons/"
-  }
-}
-</script>
-<script src="ui-scale.js"></script>
-<script src="browser-guard.js"></script>
-<script src="starhermit-sdk.js"></script>
-<script src="sh-language.js"></script>
-<script>window.StarHermit && StarHermit.init();</script>
+<style>html,body{margin:0;height:100%;background:#000;color:#eee;font:16px/1.5 system-ui,sans-serif}canvas{display:block;width:100%;height:100%}.starhermit-message{position:fixed;inset:0;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:#000}.starhermit-message[hidden]{display:none}.starhermit-late{animation:starhermit-late 0s 20s both}@keyframes starhermit-late{from{visibility:hidden}to{visibility:visible}}</style>
+<script type="module" src="https://wiki.starhermit.com/engine/1.22.0/starhermit.js" integrity="sha384-j1GCyqS83Gt7QcVH9CHSItxR2jN3YWCkbii0e/X5fexseceT3eIFbcq62K7+bAvB" crossorigin="anonymous"></script>
+<script type="application/json" id="starhermit-config">{"manifest":{"integrity":"sha384-TVVjpAjsqiKZhmm74QC5XYz8f6cdh/4+LoXJntAsnXWm91oqv0WH+7w/tQAJf1VG","url":"https://wiki.starhermit.com/engine/1.22.0/manifest.json"}}</script>
 </head>
 <body>
-  <a class="skip-link" href="#screen-root" data-i18n="skipLink">Skip to interface</a>
-  <div id="app">
-    <canvas id="gl" aria-hidden="true"></canvas>
-    <div id="crosshair" aria-hidden="true"></div>
-    <div id="captions" aria-hidden="true"></div>
-    <div id="hud-root" class="hidden"></div>
-    <div id="screen-root" role="main"></div>
-    <div id="overlay-root" class="hidden"></div>
-  </div>
-  <div id="announcer" class="sr-only" aria-live="polite" role="status"></div>
-  <div id="board-mirror" class="sr-only" role="region" aria-label="Board state summary" data-i18n-aria="boardMirror"></div>
-  <noscript>
-    <div class="panel narrow" style="margin:4rem auto;max-width:36rem;padding:2rem">
-      <h1>Workshop Mayhem needs JavaScript</h1>
-      <p>The workshop is an interactive physics toy and requires JavaScript to run.</p>
-    </div>
-  </noscript>
-  <script src="./src/render/gpu-level.js"></script>
-  <script type="module" src="./src/main.js"></script>
+<canvas></canvas>
+<div id="starhermit-status" class="starhermit-message" role="status"><span>Loading Workshop Mayhem…</span><span class="starhermit-late">If the game has not started, this browser cannot run it or its engine (StarHermit 1.22.0) could not be loaded: reload the page, or open it in a current Chrome, Edge, Firefox or Safari.</span></div>
+<noscript><p class="starhermit-message">This game needs JavaScript.</p></noscript>
 </body>
 </html>

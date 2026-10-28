@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A physics toy: whimsical tools, one resilient training dummy, and a playful inventor's workshop.",
+  "description": "A physics toy on the StarHermit engine: whimsical tools, one resilient training dummy, and a playful inventor's workshop.",
   "scripts": {
+    "test": "npm run test:unit && npm run test:native",
+    "test:unit": "node tests/run.mjs",
+    "test:native": "node tests/native.mjs",
+    "test:browser": "node tools/browser-play.mjs",
     "start": "node server.js",
-    "test": "node tests/run.mjs",
-    "test:e2e": "node tests/e2e.mjs",
+    "package": "node tools/package-web.mjs",
+    "css": "node tools/css.mjs",
     "validate": "node tools/validate-content.mjs"
   },
   "license": "PolyForm-Noncommercial-1.0.0",

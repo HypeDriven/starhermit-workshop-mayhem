@@ -18,7 +18,7 @@ export const TUTORIALS = [
   }), [
     { text: 'Select the Wallop Piston in the tool tray.', expect: { ui: 'select-tool', tool: 'piston' } },
     { text: 'Place it on the glowing wall mount.', expect: { do: 'place', tool: 'piston' }, hint: { x: -4.7, y: 0.9, mountId: 'mw' } },
-    { text: 'Aim toward the bell (drag or use the aim keys), then confirm.', expect: { ui: 'aim' } },
+    { text: 'Aim toward the bell by dragging from the mount, then release (keys aim at the dummy).', expect: { ui: 'aim' } },
     { text: 'Trigger the piston and watch the dummy fly!', expect: { do: 'trigger' } },
   ]),
 

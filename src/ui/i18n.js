@@ -14,11 +14,12 @@ import frFR from './strings/fr-FR.js';
 import frCA from './strings/fr-CA.js';
 import ptBR from './strings/pt-BR.js';
 import itIT from './strings/it-IT.js';
+import { withPort } from './strings/port.js';
 
-export const STRINGS = {
+export const STRINGS = Object.fromEntries(Object.entries({
   'en-US': enUS, 'en-GB': enGB, 'es-419': es419, 'es-ES': esES, 'de-DE': deDE,
   'fr-FR': frFR, 'fr-CA': frCA, 'pt-BR': ptBR, 'it-IT': itIT,
-};
+}).map(([k, v]) => [k, withPort(k, v)]));
 export const SUPPORTED = Object.keys(STRINGS);
 const EN = STRINGS['en-US'];
 

@@ -1,25 +1,63 @@
 name=Workshop Mayhem
 description=Experiment with whimsical tools and a resilient training dummy to complete physics challenges and earn upgrades.
-launch=index.html
 owner=2712e04e-461b-4d23-81ae-e40b429128a8
 server=score-script.js
 cover=cover.jpg
-control.confirm=Enter | Confirm / place
+
+# StarHermit engine script game: one package, played natively by the
+# StarHermit client and in browsers by the engine's web runtime. Browsers open
+# launch=index.html, the loader `npm run package` writes (it pins the engine
+# on wiki.starhermit.com by hash; never edit it). Re-run `npm run package`
+# after every change and commit index.html + starhermit-files.json.
+launch=index.html
+engine.api=1
+engine.entry=native/main.ts
+engine.version=1.22.0
+engine.minor=24
+engine.capabilities=platform,storage,clipboard
+
+# Keyboard actions (players rebind keys and pads in the runtime's Options).
+# The workshop is also played with the pointer or a finger: tap a tool in the
+# tray, then tap or drag on the playfield to place and aim it; tap an armed
+# tool (or its ⚡ chip) to trigger it.
+engine.group.tool1=Tools
+control.tool1=Digit1 | Tool slot 1
+control.tool2=Digit2 | Tool slot 2
+control.tool3=Digit3 | Tool slot 3
+control.tool4=Digit4 | Tool slot 4
+control.tool5=Digit5 | Tool slot 5
+control.tool_prev=BracketLeft | Previous tool
+control.tool_next=BracketRight | Next tool
+engine.group.cursor_up=Cursor
+control.cursor_up=ArrowUp | Move cursor up
+control.cursor_down=ArrowDown | Move cursor down
+control.cursor_left=ArrowLeft | Move cursor left
+control.cursor_right=ArrowRight | Move cursor right
+control.fine=ShiftLeft+ShiftRight | Fine cursor steps (hold)
+control.confirm=Enter+NumpadEnter | Confirm / place
 control.trigger=Space | Trigger tool
-control.cancel=Escape | Cancel
+control.cancel=Escape | Cancel / pause
+engine.group.pause=Round
 control.pause=KeyP | Pause
 control.undo=KeyU | Undo
 control.hint=KeyH | Hint
 control.restart=KeyR | Restart round
 control.skip=KeyS | Fast-forward
 control.camera=KeyC | Camera reset
-control.mute=KeyM | Mute
-control.tool1=Digit1 | Tool slot 1
-control.tool2=Digit2 | Tool slot 2
-control.tool3=Digit3 | Tool slot 3
-control.tool4=Digit4 | Tool slot 4
-control.tool5=Digit5 | Tool slot 5
-control.cursorUp=ArrowUp | Move cursor up
-control.cursorDown=ArrowDown | Move cursor down
-control.cursorLeft=ArrowLeft | Move cursor left
-control.cursorRight=ArrowRight | Move cursor right
+control.mute=KeyM | Mute game sound
+
+engine.gamepad.cursor_up=DpadUp+LeftStickUp
+engine.gamepad.cursor_down=DpadDown+LeftStickDown
+engine.gamepad.cursor_left=DpadLeft+LeftStickLeft
+engine.gamepad.cursor_right=DpadRight+LeftStickRight
+engine.gamepad.confirm=South
+engine.gamepad.cancel=East
+engine.gamepad.trigger=West
+engine.gamepad.hint=North
+engine.gamepad.tool_prev=LeftShoulder
+engine.gamepad.tool_next=RightShoulder
+engine.gamepad.undo=Select
+engine.gamepad.pause=Start
+engine.gamepad.camera=RightStickPress
+engine.gamepad.skip=RightTrigger
+engine.gamepad.restart=LeftTrigger

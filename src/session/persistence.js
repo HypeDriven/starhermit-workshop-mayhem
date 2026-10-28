@@ -108,8 +108,8 @@ export function clearLocal(kind) {
 // lifetime totals keep the larger count, the Journey frontier keeps the
 // furthest stage. Cosmetic choices are a preference, so `local` keeps its own.
 export function mergeProgression(local, remote) {
-  const a = { ...structuredClone(DEFAULT_PROGRESSION), ...(local || {}) };
-  const b = { ...structuredClone(DEFAULT_PROGRESSION), ...(remote || {}) };
+  const a = { ...JSON.parse(JSON.stringify(DEFAULT_PROGRESSION)), ...(local || {}) };
+  const b = { ...JSON.parse(JSON.stringify(DEFAULT_PROGRESSION)), ...(remote || {}) };
   const stars = { ...b.stars };
   for (const [id, n] of Object.entries(a.stars || {})) stars[id] = Math.max(stars[id] || 0, n || 0);
   const bestScores = { ...b.bestScores };

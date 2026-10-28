@@ -10,7 +10,6 @@ import { TUTORIALS } from '../src/content/tutorials.js';
 import { THEME_ORDER } from '../src/content/themes.js';
 import { ACHIEVEMENTS } from '../src/content/achievements.js';
 import { TOOLS, INVALID } from '../src/rules/engine.js';
-import { BINDING_LABELS } from '../src/ui/input.js';
 import { dailyLevel } from '../src/content/daily.js';
 
 const LOCALES = ['en-US', 'en-GB', 'es-419', 'es-ES', 'de-DE', 'fr-FR', 'fr-CA', 'pt-BR', 'it-IT'];
@@ -55,7 +54,18 @@ suite('i18n: every t() key used in the source exists', () => {
     }
     for (const m of src.matchAll(/data-i18n(?:-aria|-title)?="([A-Za-z0-9_]+)"/g)) ok(typeof EN[m[1]] === 'string', `${path.basename(f)}: unknown data-i18n ${m[1]}`);
   }
-  ok(seen > 100, `found ${seen} keys`);
+  ok(seen > 15, `found ${seen} keys`);
+});
+
+suite('i18n: every T() key the engine client draws exists', () => {
+  const dir = new URL('../native', import.meta.url).pathname;
+  let seen = 0;
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.ts'))) {
+    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+    for (const m of src.matchAll(/\bT\(\s*"([A-Za-z0-9_]+)"/g)) { seen++; ok(typeof EN[m[1]] === 'string', `${f}: unknown key ${m[1]}`); }
+    for (const m of src.matchAll(/\bT\(\s*`([A-Za-z0-9_]+)_\$\{/g)) ok(Object.keys(EN).some((k) => k.startsWith(`${m[1]}_`)), `${f}: unknown key family ${m[1]}`);
+  }
+  ok(seen > 80, `found ${seen} keys`);
 });
 
 suite('i18n: content ids all have names in the tables', () => {
@@ -71,7 +81,7 @@ suite('i18n: content ids all have names in the tables', () => {
   for (const id of THEME_ORDER) ok(EN.themeNames[id] && EN.themeBlurbs[id], `theme ${id}`);
   for (const a of ACHIEVEMENTS) ok(EN.achNames[a.key] === a.name && EN.achDescs[a.key] === a.desc, `achievement ${a.key}`);
   for (const k of Object.keys(TOOLS)) ok(EN.tools[k] === TOOLS[k].name && EN.toolBlurbs[k] === TOOLS[k].blurb && EN.toolShort[k], `tool ${k}`);
-  for (const k of Object.keys(BINDING_LABELS)) eq(EN.bindings[k], BINDING_LABELS[k], `binding ${k}`);
+  for (const k of ['confirm', 'trigger', 'cancel', 'pause', 'undo', 'hint', 'restart', 'skip', 'camera', 'mute', 'tool1', 'tool2', 'tool3', 'tool4', 'tool5', 'toolPrev', 'toolNext', 'cursorUp', 'cursorDown', 'cursorLeft', 'cursorRight']) ok(EN.bindings[k], `binding ${k}`);
   for (const r of Object.values(INVALID)) ok(EN.invalid[r], `invalid reason ${r}`);
   for (let day = 20000; day < 20040; day++) {
     const lv = dailyLevel(day);
