@@ -1,0 +1,44 @@
+# Journey stage 1 by keys: 1 selects the Wallop Piston, Enter mounts it aimed at
+# the dummy, Space fires it into the bell; the results post nothing signed out.
+frames 150
+click Journey
+frames 20
+click =Wake the Dummy, 0 stars
+frames 20
+until 600 =Pause
+frames 330
+save j-play
+key Digit1 1
+frames 10
+expect Wallop Piston, 1 available
+key Enter 1
+frames 10
+key Space 1
+repeat 2000 until =🗺 Stages
+frames 10
+end
+frames 30
+expect Main goal
+save j-results
+click =▶ Next stage
+frames 20
+until 600 =Pause
+frames 330
+expect Far Side Chime
+key Escape 1
+frames 10
+expect Resume
+save j-pause
+click =⚙ Settings
+frames 20
+expect Open Options
+click =← Back
+frames 20
+click =▶ Resume
+frames 30
+key KeyR 1
+frames 10
+key KeyH 1
+frames 10
+expect Hint: place a Wallop Piston
+save j-hint

@@ -1,0 +1,33 @@
+# Practice on a DPR-3 phone held sideways: easy difficulty with undo; place the
+# piston, undo it, place it again, fast-forward the settle, finish.
+# viewport 844x390@3
+frames 150
+touch =Practice
+frames 20
+touch Easy — extra tool stock
+frames 10
+touch =Start practicing
+frames 20
+until 600 =Pause
+frames 330
+save p-play
+touch Wallop Piston, 2 available
+frames 10
+touch 420 200
+frames 10
+expect Undo
+touch =↩ Undo  U
+frames 10
+expect Wallop Piston, 2 available
+touch Wallop Piston, 2 available
+frames 10
+touch 420 200
+frames 10
+touch =Trigger Wallop Piston
+frames 20
+save p-fired
+repeat 2000 until =🗺 Stages
+frames 10
+end
+frames 30
+save p-results

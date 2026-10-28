@@ -436,9 +436,11 @@ function commitPlacement(startPt: { x: number; y: number }, endPt: { x: number; 
     const ax = endPt.x - startPt.x, ay = endPt.y - startPt.y, al = Math.hypot(ax, ay);
     if (al > 0.2) { dx = ax / al; dy = ay / al; }
   }
-  if (wasDrag || def.placement === "mount") session.tutorialUi("aim");
   const r = session.place(tool, startPt.x, startPt.y, dx, dy, chk.mountId ?? null);
   if (r.accepted) {
+    // the browser build reported the aim before the placement, while the lesson still waited for "place":
+    // its aim step never advanced (nor the steps after it); reported after the placement it does
+    if (wasDrag || def.placement === "mount") session.tutorialUi("aim");
     render.setTrajectory(null);
     previewKey = "";
     if ((session.state?.stock[tool] ?? 0) <= 0) deselect();

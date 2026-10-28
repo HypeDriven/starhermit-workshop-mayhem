@@ -1,0 +1,26 @@
+# Lesson 1 on a DPR-3 phone by touch: the tray's Wallop button, a tap on the
+# workshop mounts the piston aimed at the dummy, the ⚡ chip fires it; every
+# lesson step advances and the lesson completes.
+# viewport 390x844@3
+frames 150
+touch =Learn
+frames 20
+touch The Piston
+frames 20
+until 600 =Pause
+frames 330
+expect Select the Wallop Piston
+save l-start
+touch Wallop Piston, 1 available
+frames 10
+expect Place it on the glowing wall mount
+touch 195 450
+frames 10
+save l-placed
+touch =Trigger Wallop Piston
+repeat 2000 until =🗺 Stages
+frames 10
+end
+frames 30
+save l-results
+expect Next lesson

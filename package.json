@@ -6,7 +6,7 @@
   "description": "A physics toy on the StarHermit engine: whimsical tools, one resilient training dummy, and a playful inventor's workshop.",
   "scripts": {
     "test": "npm run test:unit && npm run test:native",
-    "test:unit": "node tests/run.mjs",
+    "test:unit": "node tests/run.mjs && node --test tests/save.test.mjs",
     "test:native": "node tests/native.mjs",
     "test:browser": "node tools/browser-play.mjs",
     "start": "node server.js",

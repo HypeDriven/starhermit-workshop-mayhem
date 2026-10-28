@@ -1,0 +1,74 @@
+# Every menu screen the title links (Learn, Practice, Challenge, Leaderboards,
+# Achievements, Workshop & Style, Help, Settings, profile, Daily, Journey, modes).
+frames 150
+expect Workshop Mayhem
+click =▶ Play
+frames 20
+expect Choose a mode
+save m-modes
+click =← Back
+frames 20
+click =Learn
+frames 20
+expect Learn the tools
+save m-learn
+click =← Back
+frames 20
+click =Practice
+frames 20
+expect Start practicing
+save m-practice
+click =← Back
+frames 20
+click =Challenge
+frames 20
+expect One Punch
+save m-challenge
+click =← Back
+frames 20
+click =Leaderboards
+frames 20
+expect No scores yet on this device
+save m-boards
+click =← Back
+frames 20
+click =Achievements
+frames 20
+expect Century Bench
+save m-ach
+click =← Back
+frames 20
+click =Workshop & Style
+frames 20
+expect Mastery track
+save m-style
+click =← Back
+frames 20
+click =Help
+frames 20
+expect How to play
+save m-help
+click =← Back
+frames 20
+click =Settings
+frames 20
+expect Open Options
+save m-settings
+click =← Back
+frames 20
+click Guest Inventor
+frames 20
+expect Display name
+save m-profile
+click =← Back
+frames 20
+click Daily Challenge
+frames 20
+expect Take today’s shot
+save m-daily
+click =← Back
+frames 20
+click Journey
+frames 20
+expect Chapter 6
+save m-journey

@@ -105,7 +105,7 @@ function cardGrid(id: string, count: number, w: number, min: number, gap: number
 function cardButton(id: string, icon: string, title: string, lines: [string, string][], cw: number, act: () => void, opts: { disabled?: boolean; selected?: boolean; style?: string } = {}): void {
   const inner = cw - 34;
   button({
-    id, text: title, name: [title, ...lines.map((l) => l[0])].join(". "), style: opts.style ?? "mode-card", width: cw, act,
+    id, text: title, name: [title, ...lines.map((l) => l[0])].map((x) => x.replace(/[.!]$/, "")).join(". "), style: opts.style ?? "mode-card", width: cw, act,
     ...(opts.disabled ? { disabled: true } : {}), ...(opts.selected !== undefined ? { selected: opts.selected } : {}),
     content: () => ui.column(`${id}-face`, () => {
       if (icon) ui.style("mode-icon").label(icon);
@@ -247,9 +247,8 @@ function hud(L: Layout): void {
     const p = render.worldToScreen(app.cursor.x, app.cursor.y, 0.3, f.width, f.height);
     paint("crosshair", L, p.x - 14 * L.sc, p.y - 14 * L.sc, 28 * L.sc, 28 * L.sc, (r) => {
       const c = token("accent-2"), cx = r.x + r.width / 2, cy = r.y + r.height / 2;
-      draw.circle(cx, cy, r.width / 2, "#00000066");
-      draw.circle(cx, cy, r.width / 2 - 2 * L.sc, c);
-      draw.circle(cx, cy, r.width / 2 - 4 * L.sc, "#00000000");
+      draw.strokeCircle(cx, cy, r.width / 2 - 1 * L.sc, "#00000066", 4);
+      draw.strokeCircle(cx, cy, r.width / 2 - 2 * L.sc, c, 2);
       draw.circle(cx, cy, 4 * L.sc, c);
     });
   }
