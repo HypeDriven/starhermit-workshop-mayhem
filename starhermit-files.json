@@ -80,7 +80,7 @@
     "src/ui/strings/it-IT.js": {"sha256": "3959ca98c084ff535a3e8ca1a38196fad9e16ce17f49cf4f2484f5c7f690340b", "size": 22018},
     "src/ui/strings/port.js": {"sha256": "2575fe111e2eb79f4d64e4a3bc12db50c2d0dc9a99818e21ffcef486540d1357", "size": 9087},
     "src/ui/strings/pt-BR.js": {"sha256": "45a3e1c970bea490de4b767948fcde1091ae8fc617bbc7c4a3a1d4760dfa7099", "size": 21182},
-    "starhermit.txt": {"sha256": "24153a1a3f11fbade726a7f4712ec0f3bedcb7eaa66c82c65af28797bcc531d4", "size": 2501}
+    "starhermit.txt": {"sha256": "59bea93ea67c0c4f5cd9f16f29ab9fd6791f6cbc852a589c5cf84b5b0928425a", "size": 2501}
   },
   "excluded": ["LICENSE.md", "README.md", "coverart.png", "favicon.svg", "knownissues.md", "node_modules/", "package-lock.json", "package.json", "server.js", "sfx/manifest.md", "spec.md", "tests/", "tools/", "tsconfig.json"],
   "format": 1
