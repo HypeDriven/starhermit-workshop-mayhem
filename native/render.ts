@@ -1029,6 +1029,7 @@ function applyReflections(): void {
     if (!envTex) {
       const pmrem = new PMREMGenerator(renderer);
       const room = new RoomEnvironment(renderer);
+      room.position.y = 0; // the page's three r170 (pre-r183) builds the room at the origin
       envTex = pmrem.fromScene(room, 0.04).texture;
       room.dispose();
       pmrem.dispose();
