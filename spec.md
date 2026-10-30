@@ -1,7 +1,7 @@
 # Workshop Mayhem — running specification
 
-**Genre:** physics toy · **Players:** 1 (asynchronous score comparison) · **Runs on:** the StarHermit engine 1.28.0
-(host API 1.30, `engine.minor=30`), natively in the StarHermit client and in browsers through the engine's web
+**Genre:** physics toy · **Players:** 1 (asynchronous score comparison) · **Runs on:** the StarHermit engine 1.29.0
+(host API 1.31, `engine.minor=31`), natively in the StarHermit client and in browsers through the engine's web
 runtime (`index.html` is the loader `npm run package` writes).
 
 ## 1. The game
@@ -58,7 +58,7 @@ the nearest free mount, pads to floors); tap an armed tool or its ⚡ chip to tr
   pooled particles, the spring camera rig with shake. At minor 24 the page's own light intensities (r155+
   physical), shadow values (bias −0.0004, normalBias 0.02, the key light's camera fitted to the arena) and
   reflections (`new RoomEnvironment(renderer)` per the r163+ rule, PMREM σ 0.04, environmentIntensity 0.16) are used.
-- Post effects: GTAO (High/Ultra), bloom (threshold 1.05, before tone mapping; model "r176" at the r170 page strength 0.4 (minor 30)), the grade in display space, the
+- Post effects: GTAO (High/Ultra), bloom (threshold 1.05, before tone mapping; model "r176" at the r170 page strength 0.4 (minor 31)), the grade in display space, the
   preset's antialiasing; ACES tone mapping with each theme's exposure; fog scaled with camera distance.
 - Graphics levels: `native/quality.ts` maps the runtime's quality tier and level to the old presets and budgets
   (shadow map size, material model, texture size, segment budget, dust and particle caps). Render scale, DPR cap,

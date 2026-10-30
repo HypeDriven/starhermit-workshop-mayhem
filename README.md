@@ -5,7 +5,7 @@ Magnet and Thumper Weight — on a resilient plush training dummy to solve physi
 inventor's workshop. Learn (5 lessons), Journey (40 stages in 6 chapters), Daily, Practice, Challenge (8 stages)
 and Score Chase (the StarHermit high-score board).
 
-It is an engine script game (`starhermit.txt`, entry `native/main.ts`, engine 1.28.0, minor 30): played natively
+It is an engine script game (`starhermit.txt`, entry `native/main.ts`, engine 1.29.0, minor 31): played natively
 by the StarHermit client and in browsers through the web loader (`index.html`, written by `npm run package`).
 
 - `src/rules`, `src/content`, `src/session` — the deterministic rules, content and session (shared with the tests).
