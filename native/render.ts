@@ -1045,13 +1045,13 @@ function applyPost(): void {
     denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: l.ao === "high" ? 8 : 4, rings: 2, samples: l.ao === "high" ? 16 : 8, radiusExponent: 2 },
   };
   // threshold on HDR (pre-tone-map) values: only the lamp bulb, window glow and hot highlights bloom
-  // three r170 page: minor 29's bloom is r185's and stronger, so the page's 0.4 is squared (0.16) to keep its look
-  renderer.bloom = l.bloom ? { strength: 0.16, radius: 0.5, threshold: 1.05, resolution: l.budget.bloomRes } : null;
+  // three r170 page: r176 UnrealBloom at the page's strength
+  renderer.bloom = l.bloom ? { model: "r176", strength: 0.4, radius: 0.5, threshold: 1.05, resolution: l.budget.bloomRes } : null;
   // scene.js GradeShader after OutputPass: S-curve 0.22, saturation 1.1, cool shadows / warm highlights over
   // smoothstep(0.15, 0.8), blacks lifted ×0.97 + 0.02, vignette 0.28 over 0.38–0.9 (x stretched 1.1)
   renderer.grade = l.grade ? {
-    space: "display", contrast: 0.11, saturation: 1.1,
-    shadows: [0.95 * 0.97 + 0.02, 0.98 * 0.97 + 0.02, 1.05 * 0.97 + 0.02], highlights: [1.05 * 0.97 + 0.02, 0.99, 0.94 * 0.97 + 0.02], split: [0.15, 0.8],
+    space: "display", contrastCurve: "s", contrast: 0.22, saturation: 1.1, levels: [0.97, 0.02],
+    shadows: [0.95, 0.98, 1.05], highlights: [1.05, 1.0, 0.94], split: [0.15, 0.8],
     vignette: { amount: 0.28, inner: 0.38, outer: 0.9, scale: [1.1, 1] },
   } : null;
 }
