@@ -1,0 +1,19 @@
+# Graphics-tier bench (tools/engine-tier-bench.mjs): Journey stage 1 through the real UI, settle on the
+# workshop 120 frames, then measure about 600 frames of play: the piston mounted and fired, the dummy
+# launched into the bell (impact, bell and confetti particles, dust, the camera shake, the results).
+frames 150
+click Journey
+frames 20
+click =Wake the Dummy, 0 stars
+frames 20
+until 600 =Pause
+frames 330
+frames 120
+measure start
+key Digit1 1
+frames 10
+key Enter 1
+frames 10
+key Space 1
+frames 580
+measure stop
