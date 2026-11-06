@@ -1,76 +1,29 @@
-// Localization runtime: one language source for every string module (UI,
-// Graphics panel, StarHermit buttons). The locale comes from sh-language.js
-// (loaded as a classic script before the game modules): explicit game choice
-// (`ui.language`) → StarHermit account preferredLanguage → navigator.languages
-// → en-US. A change re-applies [data-i18n] markup and notifies onLanguage
-// listeners so screens, HUD and overlays re-render in place — the round, the
-// simulation and progress are untouched.
-import enUS from './strings/en-US.js';
-import enGB from './strings/en-GB.js';
-import es419 from './strings/es-419.js';
-import esES from './strings/es-ES.js';
-import deDE from './strings/de-DE.js';
-import frFR from './strings/fr-FR.js';
-import frCA from './strings/fr-CA.js';
-import ptBR from './strings/pt-BR.js';
-import itIT from './strings/it-IT.js';
-import { withPort } from './strings/port.js';
+// Display helpers over the string tables (assets/strings.json: flat keys,
+// `group.id` for content groups): the client binds the engine's `strings`, the
+// tests a table of their own.
+let impl = {
+  t: (key) => key,
+  tn: (group, id, fallback = id) => fallback,
+  locale: () => 'en-US',
+};
+export function bindStrings(next) { impl = next; }
 
-export const STRINGS = Object.fromEntries(Object.entries({
-  'en-US': enUS, 'en-GB': enGB, 'es-419': es419, 'es-ES': esES, 'de-DE': deDE,
-  'fr-FR': frFR, 'fr-CA': frCA, 'pt-BR': ptBR, 'it-IT': itIT,
-}).map(([k, v]) => [k, withPort(k, v)]));
-export const SUPPORTED = Object.keys(STRINGS);
-const EN = STRINGS['en-US'];
+/** Flat UI string with {var} substitution. */
+export function t(key, vars) { return impl.t(key, vars); }
 
-let lang = 'en-US';
-let dict = EN;
-const listeners = new Set();
+/** Content-group lookup (levels, tools, themes…), else `fallback`. */
+export function tn(group, id, fallback = id) { return impl.tn(group, id, fallback); }
 
-function fill(s, vars) {
-  if (!vars) return s;
-  return String(s).replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? String(vars[k]) : m));
-}
+export function locale() { return impl.locale(); }
 
-/** Flat UI string with {var} substitution and en-US fallback. */
-export function t(key, vars) {
-  const s = dict[key] != null ? dict[key] : (EN[key] != null ? EN[key] : key);
-  return fill(s, vars);
-}
-
-/** Content-group lookup (levels, tools, themes…) with en-US then `fallback`. */
-export function tn(group, id, fallback = id) {
-  const own = dict[group]?.[id];
-  if (own != null) return own;
-  const en = EN[group]?.[id];
-  return en != null ? en : fallback;
-}
-
-export function locale() { return lang; }
-
-export function onLanguage(fn) {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
-}
-
-/** Re-apply data-i18n / -aria / -title / -placeholder below `root`. */
-export function applyDom(root = globalThis.document) {
-  if (!root?.querySelectorAll) return;
-  for (const el of root.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
-  for (const el of root.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
-  for (const el of root.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle);
-}
-
-export function setLocale(next) {
-  lang = STRINGS[next] ? next : 'en-US';
-  dict = STRINGS[lang];
-  const doc = globalThis.document;
-  if (doc?.documentElement) doc.documentElement.lang = lang;
-  if (doc && doc.readyState !== 'loading') applyDom(doc);
-  for (const fn of [...listeners]) {
-    try { fn(lang); } catch (err) { console.error(err); }
-  }
-}
+/** The daily families' English intros (src/content/daily.js): their keys in `dailyIntros`. */
+export const DAILY_INTRO_KEYS = {
+  'One piston, one bell, one shared world. Everyone gets this exact setup today.': 'slide',
+  'Pop the dummy into the chalk circle and keep it there.': 'popup',
+  'A single gust stands between the dummy and the circle.': 'fan',
+  'Ring the high bell with nothing but magnetism.': 'magnet',
+  'Today’s order: reduce the stack to rubble.': 'demolition',
+};
 
 // --- content display helpers ------------------------------------------------------
 
@@ -94,7 +47,7 @@ export function lessonTitle(lv) { return tn('lessons', lv.id, lv.name); }
 export function levelIntro(lv) {
   if (!lv?.intro) return '';
   if (lv.daily) {
-    const fam = Object.keys(EN.dailyIntros).find((k) => EN.dailyIntros[k] === lv.intro);
+    const fam = DAILY_INTRO_KEYS[lv.intro];
     return fam ? tn('dailyIntros', fam, lv.intro) : lv.intro;
   }
   const m = LEVEL_ID.exec(lv.id || '');
@@ -130,13 +83,6 @@ export function reasonText(reason) {
 /** Number formatting in the current locale (decimal comma where expected). */
 export function num(n, digits = 0) {
   try {
-    return new Intl.NumberFormat(lang, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+    return new Intl.NumberFormat(impl.locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
   } catch { return Number(n).toFixed(digits); }
 }
-
-// --- language source ------------------------------------------------------------------
-const SL = globalThis.StarHermitLanguage;
-export const language = (SL && globalThis.document)
-  ? SL.create({ game: 'workshop-mayhem', supported: SUPPORTED, apply: (l) => setLocale(l) })
-  : null;
-if (!language) setLocale('en-US');

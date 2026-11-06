@@ -1,7 +1,7 @@
 # Workshop Mayhem — running specification
 
-**Genre:** physics toy · **Players:** 1 (asynchronous score comparison) · **Runs on:** the StarHermit engine 1.36.0
-(host API 1.32, `engine.minor=32`), natively in the StarHermit client and in browsers through the engine's web
+**Genre:** physics toy · **Players:** 1 (asynchronous score comparison) · **Runs on:** the StarHermit engine 1.38.0
+(host API 1.38, `engine.minor=38`), natively in the StarHermit client and in browsers through the engine's web
 runtime (`index.html` is the loader `npm run package` writes).
 
 ## 1. The game
@@ -58,18 +58,19 @@ the nearest free mount, pads to floors); tap an armed tool or its ⚡ chip to tr
   pooled particles, the spring camera rig with shake. At minor 24 the page's own light intensities (r155+
   physical), shadow values (bias −0.0004, normalBias 0.02, the key light's camera fitted to the arena) and
   reflections (`new RoomEnvironment(renderer)` per the r163+ rule, PMREM σ 0.04, environmentIntensity 0.16) are used.
-- Post effects: GTAO (High/Ultra), bloom (threshold 1.05, before tone mapping; model "r176" at the r170 page strength 0.4 (minor 31)), the grade in display space, the
+- Post effects: GTAO (High/Ultra), bloom (threshold 1.05, before tone mapping; model "r176" at the r170 page strength 0.4 (minor 38)), the grade in display space, the
   preset's antialiasing; ACES tone mapping with each theme's exposure; fog scaled with camera distance.
-- Graphics levels: `native/quality.ts` maps the runtime's quality tier and level to the old presets and budgets
-  (shadow map size, material model, texture size, segment budget, dust and particle caps). Render scale, DPR cap,
-  adaptive resolution and the frame limit belong to the runtime.
+- Graphics levels: `native/quality.ts` takes shadows and their map size, AO, bloom, the grade and anti-aliasing from
+  the level (`levelSettings()`, so Low has no anti-aliasing); the old presets keep the art (material model, texture
+  size, segment budget, dust and particle caps, the particle pool scaled by the level's particle budget above the
+  tier's anchor, at most 2×). Render scale, DPR cap, adaptive resolution and the frame limit belong to the runtime.
 - Differences from the browser build: no plush sheen (the engine has no sheen); the dashed trajectory line is drawn
   as line segments; the metal speckle texture is seeded; the ambience's slow LFO swell is left out (steady bed).
 - UI: `native/screens.ts` (starhermit:ui) from `tools/ui-style.css` (`npm run css` → `assets/ui-style.json`).
   Layouts: wide (≥ 1024 px: tray centred, actions in a right column), compact, phone portrait (≤ 700 px wide: actions
   above the tray), short landscape (≤ 500 px tall: status card stacked, tool names hidden). Left-handed swaps sides.
 - Audio (`native/audio.ts`): the 37 recorded one-shots per event; the adaptive music (warm/cool scale, three
-  intensities) and the per-theme ambience rendered into looping clips on the music bus; UI sounds on the interface
+  intensities) and the per-theme ambience rendered through OfflineAudioContext into looping clips on the music bus; UI sounds on the interface
   bus. Fast-forward shows "Fast-forwarding…" for the frame before it runs (up to ~0.4 s natively).
 
 ## 4. Settings, accessibility, language
@@ -80,7 +81,7 @@ The game's Settings keep: open Options, key bindings, game-sound mute (M), capti
 left-handed HUD, colour palette for state colours (default, deuteranopia, tritanopia, high contrast), undo in
 practice, replay tutorials, camera reset. Dropped as stored-but-dead: hold-to-aim, timing assistance, haptics,
 profile privacy, and the anonymous-telemetry consent (its queue was never sent anywhere).
-All strings come from `src/ui/strings/*.js` (+ `port.js` for strings added or reworded for this build) in the nine
+All strings come from `assets/strings.json` (engine `strings`; content groups as `group.id`) in the nine
 locales (en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR, it-IT), in the runtime's interface language.
 
 ## 5. Platform integration

@@ -838,7 +838,7 @@ class ToolView {
 interface P { life: number; x: number; y: number; z: number; vx: number; vy: number; vz: number; g: number; r: number; gc: number; b: number }
 class VfxPool {
   cap: number; pos = new Float32Array(PARTICLE_MAX * 3); col = new Float32Array(PARTICLE_MAX * 3);
-  points: Points; p: P[] = []; head = 0; alive = 0; enabled = true;
+  points: Points; p: P[] = []; head = 0; alive = 0; emitted = false; enabled = true;
   rnd = Rng.createStream(0x5eed);
   constructor(parent: Object3D, cap: number, public theme: Theme) {
     this.cap = Math.min(PARTICLE_MAX, cap || PARTICLE_MAX);
@@ -869,6 +869,7 @@ class VfxPool {
   emit(n: number, fn: (p: P, k: number) => void): void {
     if (!this.enabled) return;
     n = Math.min(n, this.cap);
+    this.emitted = true;
     for (let k = 0; k < n; k++) { const p = this.p[this.head]!; this.head = (this.head + 1) % this.cap; fn(p, k); p.life = p.life || 1; }
   }
   col3(c: number, p: P): void { const x = new Color(c); p.r = x.r; p.gc = x.g; p.b = x.b; }
@@ -923,7 +924,8 @@ class VfxPool {
     });
   }
   update(dt: number): void {
-    if (!this.enabled) return;
+    if (!this.enabled || (!this.alive && !this.emitted)) return; // nothing to move or to send to the GPU
+    this.emitted = false;
     let alive = 0;
     for (let i = 0; i < this.cap; i++) {
       const p = this.p[i]!;
@@ -1041,13 +1043,14 @@ function applyReflections(): void {
 function applyPost(): void {
   const l = look!;
   renderer.antialias = l.antialias;
-  renderer.ao = l.ao === "off" ? null : {
-    blendIntensity: 0.75, radius: 0.55, distanceExponent: 2, thickness: 1.2, scale: 1.0, samples: l.ao === "high" ? 16 : 8, resolution: l.budget.aoRes,
-    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: l.ao === "high" ? 8 : 4, rings: 2, samples: l.ao === "high" ? 16 : 8, radiusExponent: 2 },
+  const full = !!l.ao && l.ao.resolution >= 1; // the engine's "high"
+  renderer.ao = l.ao && {
+    blendIntensity: 0.75, radius: 0.55, distanceExponent: 2, thickness: 1.2, scale: 1.0, samples: l.ao.samples, resolution: l.ao.resolution,
+    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: full ? 8 : 4, rings: 2, samples: l.ao.denoiseSamples, radiusExponent: 2 },
   };
   // threshold on HDR (pre-tone-map) values: only the lamp bulb, window glow and hot highlights bloom
   // three r170 page: r176 UnrealBloom at the page's strength
-  renderer.bloom = l.bloom ? { model: "r176", strength: 0.4, radius: 0.5, threshold: 1.05, resolution: l.budget.bloomRes } : null;
+  renderer.bloom = l.bloom === null ? null : { model: "r176", strength: 0.4, radius: 0.5, threshold: 1.05, resolution: l.bloom };
   // scene.js GradeShader after OutputPass: S-curve 0.22, saturation 1.1, cool shadows / warm highlights over
   // smoothstep(0.15, 0.8), blacks lifted ×0.97 + 0.02, vignette 0.28 over 0.38–0.9 (x stretched 1.1)
   renderer.grade = l.grade ? {

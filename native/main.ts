@@ -20,7 +20,7 @@
 // build accumulated requestAnimationFrame time), and the countdown, toasts,
 // the hint ghost and the pause before the results run on the same clock, so
 // slow frames never change a round and play scripts replay exactly.
-import { clipboard, frame, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate } from "starhermit:engine";
+import { clipboard, frame, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate, levelSettings } from "starhermit:engine";
 import { isDown, onAction, onPointerButton, onPointerMove, onTouch, value } from "starhermit:input";
 import * as ui from "starhermit:ui";
 import { onSessionEnded, requestSignIn } from "starhermit:platform";
@@ -29,7 +29,7 @@ import {
   type GameEvent, type Level, type Results, type Session, type ToolKey, type Progression, type AchievementDoc,
 } from "./game.ts";
 import * as audio from "./audio.ts";
-import { S, T, themeName, achName, captionText, invalidText, levelIntro, levelName, num, reasonText, toolName } from "./i18n.ts";
+import { T, themeName, achName, captionText, invalidText, levelIntro, levelName, num, reasonText, toolName } from "./i18n.ts";
 import * as platform from "./platform.ts";
 import { lookFor } from "./quality.ts";
 import * as render from "./render.ts";
@@ -63,7 +63,6 @@ export const app = {
   selectedTool: null as ToolKey | null,
   cursor: null as { x: number; y: number } | null,
   showCursor: false,
-  toasts: [] as Toast[],
   captions: [] as Toast[],
   hintUntil: 0,
   busy: null as string | null,
@@ -86,8 +85,10 @@ let announceQueue: string[] = [];
 export function announce(text: string): void { if (text) announceQueue.push(text); }
 export function sfx(t: string): void { audio.event({ t }, now()); }
 export function toast(text: string, kind: Toast["kind"] = "bad"): void {
-  app.toasts.push({ text, until: now() + (kind === "bad" ? 2.4 : 3.5), kind });
-  while (app.toasts.length > 3) app.toasts.shift();
+  const v = ui.viewport!(), bad = kind === "bad";
+  // The old stack's distance from the bottom, past the toast stack's own 16 px margin: above the tray or the phone's controls. Callers announce.
+  const above = v.width <= 700 && v.height > v.width ? 210 : app.screen ? 24 : 110;
+  ui.toast!(text, { duration: bad ? 2.4 : 3.5, style: bad ? ["toast", "toast-text"] : ["toast-info", "info-text"], dismissible: false, announce: false, position: "bottom", offset: above - 16 });
 }
 function caption(key: string): void {
   if (!platform.options.captions) return;
@@ -633,9 +634,9 @@ function postToLeaderboard(ctx: ResultsCtx): void {
   const r = ctx.results;
   const ranked = ["daily", "journey", "challenge"].includes(r.mode) && r.score.primaryComplete;
   if (!platform.signedIn() || !ranked) { void loadComparison(ctx); return; }
-  ctx.lb = { key: "lbPosting" };
+  ctx.lb = { key: "starhermit.leaderboardPosting" };
   void platform.postScore(r.score.total).then((res) => {
-    ctx.lb = !res.posted ? { key: "lbNotPosted" } : res.rank ? { key: "lbRank", vars: { rank: res.rank } } : { key: "lbPosted" };
+    ctx.lb = !res.posted ? { key: "starhermit.leaderboardNotPosted" } : res.rank ? { key: "starhermit.leaderboardRank", vars: { rank: res.rank } } : { key: "starhermit.leaderboardPosted" };
     void loadComparison(ctx);
   });
 }
@@ -656,12 +657,12 @@ async function loadComparison(ctx: ResultsCtx): Promise<void> {
     ctx.cmp = better === 0 ? { key: "topOfBoard" } : { key: casual ? "beatsCasual" : "beats", vars: { n: rows.length - better, total: rows.length } };
   }
 }
-export function resultsLine(ctx: ResultsCtx): string | null { return ctx.lb ? S(ctx.lb.key, ctx.lb.vars) : null; }
+export function resultsLine(ctx: ResultsCtx): string | null { return ctx.lb ? T(ctx.lb.key, ctx.lb.vars) : null; }
 export function signIn(): void { void requestSignIn().catch(() => undefined); }
 export function copyInvite(): void {
   const link = platform.inviteLink();
   if (!link) return;
-  try { clipboard.writeText(link); toast(S("inviteCopied"), "info"); } catch { toast(S("inviteFailed", { link }), "info"); }
+  try { clipboard.writeText(link); toast(T("starhermit.inviteCopied"), "info"); } catch { toast(T("starhermit.inviteLink", { link }), "info"); }
 }
 export function setTheme(id: string): void {
   platform.setOption("lastTheme", id);
@@ -718,10 +719,9 @@ onFixedUpdate(() => {
 let lookKey = "";
 function applyLook(): void {
   const f = frame();
-  const k = `${f.quality}:${f.levelIndex}`;
-  if (k === lookKey) return;
-  lookKey = k;
-  render.applyLook(lookFor(f.quality, f.levelIndex));
+  if (f.level === lookKey) return;
+  lookKey = f.level;
+  render.applyLook(lookFor(levelSettings(f.level)));
 }
 function applyOptions(): void {
   render.setTheme(app.level?.theme ?? platform.options.lastTheme, platform.options.palette);
@@ -741,7 +741,7 @@ onStart(() => {
 onPreferencesChange((p) => render.setReducedMotion(p.reducedMotion));
 platform.onOptionsChange(() => applyOptions());
 platform.onProgressMerged(() => { toast(T("progressMerged"), "info"); });
-onSessionEnded(() => toast(S("signedOut"), "info"));
+onSessionEnded(() => toast(T("starhermit.signedOut"), "info"));
 onSuspend(() => {
   hidden = true;
   if (app.state === "active") pauseGame();
@@ -757,7 +757,6 @@ onUpdate((dt) => {
   applyTokens(ui.preferences().highContrast);
   audio.update();
   const t = now();
-  app.toasts = app.toasts.filter((x) => x.until >= t);
   app.captions = app.captions.filter((x) => x.until >= t);
   if (skipPending > 0 && --skipPending === 0) runSkip();
 });

@@ -18,7 +18,7 @@ import * as draw from "starhermit:draw";
 import * as ui from "starhermit:ui";
 import { Achievements, Engine, Stages, Themes, Tutorials, type Goal, type Level, type ToolKey } from "./game.ts";
 import {
-  S, T, achDesc, achName, bindingLabel, chapterName, goalProgressLabel, lessonTitle, levelIntro, levelName, objectiveText, reasonText,
+  T, achDesc, achName, bindingLabel, chapterName, goalProgressLabel, lessonTitle, levelIntro, levelName, objectiveText, reasonText,
   stepText, themeBlurb, themeName, toolBlurb, toolName, toolShort, num,
 } from "./i18n.ts";
 import * as platform from "./platform.ts";
@@ -33,11 +33,8 @@ import { token } from "./style.ts";
 // ------------------------------------------------------------------ layout helpers
 interface Layout { lw: number; lh: number; sc: number; wide: boolean; phone: boolean; land: boolean; sa: { left: number; top: number; right: number; bottom: number } }
 function layoutNow(): Layout {
-  const f = frame();
-  const sc = ui.preferences().scale;
-  const sa = f.safeArea;
-  const lw = Math.max(1, (f.width - sa.left - sa.right) / sc), lh = Math.max(1, (f.height - sa.top - sa.bottom) / sc);
-  return { lw, lh, sc, sa, wide: lw >= 1024, phone: lw <= 700 && lh > lw, land: lh <= 500 && lw > lh };
+  const v = ui.viewport!(), lw = Math.max(1, v.width), lh = Math.max(1, v.height);
+  return { lw, lh, sc: v.scale, sa: frame().safeArea, wide: lw >= 1024, phone: lw <= 700 && lh > lw, land: lh <= 500 && lw > lh };
 }
 const lastSize = new Map<string, ui.Rect>();
 function textWidth(text: string, style: string, kind?: "button" | "heading"): number {
@@ -71,25 +68,8 @@ function button(b: Btn): boolean {
   return hit;
 }
 /** Buttons in rows that wrap at `width` (flex-wrap). */
-function flow(label: string, list: Btn[], width: number, gap = 8, justify: "start" | "center" | "end" = "start", stretch = false): void {
-  const rows: Btn[][] = [[]];
-  let used = 0;
-  const bw = (b: Btn): number => Math.min(width, b.width ?? buttonWidth(b.text, b.style ?? "btn"));
-  for (const b of list) {
-    const w = bw(b);
-    if (rows[rows.length - 1]!.length && used + gap + w > width) { rows.push([]); used = 0; }
-    used += (rows[rows.length - 1]!.length ? gap : 0) + w;
-    rows[rows.length - 1]!.push(b);
-  }
-  ui.column(label, () => {
-    rows.forEach((row, ri) => ui.row(`${label}-r${ri}`, () => {
-      if (stretch) {
-        const total = row.reduce((n, b) => n + bw(b), 0);
-        const extra = (width - total - gap * (row.length - 1)) / row.length;
-        for (const b of row) button({ ...b, width: bw(b) + extra });
-      } else for (const b of row) button(b);
-    }, { spacing: gap, width, justify, align: "center" }));
-  }, { spacing: gap, width });
+function flow(label: string, list: Btn[], width: number, gap = 8, justify: "start" | "center" | "end" = "start"): void {
+  ui.row(label, () => { for (const b of list) button(b); }, { wrap: true, width, gap, justify, align: "center" });
 }
 /** CSS repeat(auto-fill, minmax(min, 1fr)). */
 function cardGrid(id: string, count: number, w: number, min: number, gap: number, cell: (i: number, cw: number) => void): void {
@@ -131,7 +111,6 @@ export function drawScreens(): void {
   else if (app.session?.state) hud(L);
   if (app.overlay === "pause") pausePanel(L);
   else if (app.overlay === "results") resultsPanel(L);
-  toasts(L);
   if (app.busy) {
     ui.place("busy", { anchor: "center" }, () => ui.column("busy-card", () => ui.style("busy").label(app.busy!), { style: "toast-info" }));
   }
@@ -328,17 +307,6 @@ function hud(L: Layout): void {
   }
 }
 
-// ------------------------------------------------------------------ toasts
-function toasts(L: Layout): void {
-  if (!app.toasts.length) return;
-  const w = Math.min(L.lw * 0.8, 480);
-  ui.place("toast-stack", { anchor: "bottom", y: L.phone ? 210 : app.screen ? 24 : 110 }, () => {
-    ui.column("toast-col", () => {
-      app.toasts.forEach((t, i) => ui.column(`toast-${i}`, () => para(t.text, w - 34, t.kind === "bad" ? "toast-text" : "info-text", `toast-${i}-text`), { style: t.kind === "bad" ? "toast" : "toast-info" }));
-    }, { spacing: 6, align: "center" });
-  });
-}
-
 // ------------------------------------------------------------------ overlays
 function pausePanel(L: Layout): void {
   const w = Math.min(34 * 16, L.lw - 24), inner = w - 40;
@@ -488,8 +456,8 @@ function titleScreen(w: number, L: Layout): void {
     { id: "lnk-help", text: T("help"), style: "link", act: () => route("help") },
     { id: "lnk-settings", text: T("settings"), style: "link", act: () => route("settings") },
   ];
-  if (!platform.signedIn()) links.push({ id: "lnk-signin", text: S("signIn"), style: "link", act: signIn });
-  if (platform.inviteLink()) links.push({ id: "lnk-invite", text: S("invite"), style: "link", act: copyInvite });
+  if (!platform.signedIn()) links.push({ id: "lnk-signin", text: T("starhermit.signIn"), style: "link", act: signIn });
+  if (platform.inviteLink()) links.push({ id: "lnk-invite", text: T("starhermit.invite"), style: "link", act: copyInvite });
   flow("title-links", links, Math.min(L.lw - 24, Math.max(w, 600)), 6, "center");
 }
 function modesScreen(w: number, L: Layout): void {
@@ -817,13 +785,13 @@ function profileScreen(w: number): void {
       const save = button({ id: "btn-save-name", text: T("save"), act: () => setDisplayName(app.profileName) });
       if (ui.submitted("display-name") && !save) later(() => setDisplayName(app.profileName));
     }, { spacing: 8, align: "center" });
-    button({ id: "btn-profile-signin", text: S("signIn"), act: signIn });
+    button({ id: "btn-profile-signin", text: T("starhermit.signIn"), act: signIn });
     para(T("guestNote"), w, "muted", "guest-note");
   } else {
     para(T("signedInAs", { name: platform.displayName() }), w, "muted", "signed-as");
     const st = platform.syncState();
     para(T(`sync_${st === "offline" ? "offline" : st}`), w, "muted", "sync-line");
-    if (platform.inviteLink()) button({ id: "btn-invite", text: S("invite"), act: copyInvite });
+    if (platform.inviteLink()) button({ id: "btn-invite", text: T("starhermit.invite"), act: copyInvite });
   }
   backRow();
 }

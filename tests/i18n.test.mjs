@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { suite, ok, eq } from './harness.mjs';
-import { STRINGS, SUPPORTED, setLocale, t, levelName, levelIntro, stepText, reasonText } from '../src/ui/i18n.js';
+import { bindStrings, DAILY_INTRO_KEYS, t, levelName, levelIntro, stepText, reasonText } from '../src/ui/i18n.js';
 import { JOURNEY, CHALLENGES } from '../src/content/stages.js';
 import { TUTORIALS } from '../src/content/tutorials.js';
 import { THEME_ORDER } from '../src/content/themes.js';
@@ -13,6 +13,21 @@ import { TOOLS, INVALID } from '../src/rules/engine.js';
 import { dailyLevel } from '../src/content/daily.js';
 
 const LOCALES = ['en-US', 'en-GB', 'es-419', 'es-ES', 'de-DE', 'fr-FR', 'fr-CA', 'pt-BR', 'it-IT'];
+// The tables the engine loads, as nested groups, behind the helpers as the client binds them.
+const STRINGS = {};
+for (const [loc, flat] of Object.entries(JSON.parse(fs.readFileSync(new URL('../assets/strings.json', import.meta.url), 'utf8')))) {
+  const d = STRINGS[loc] = {};
+  for (const [k, v] of Object.entries(flat)) { const dot = k.indexOf('.'); if (dot < 0) d[k] = v; else (d[k.slice(0, dot)] ??= {})[k.slice(dot + 1)] = v; }
+}
+const SUPPORTED = Object.keys(STRINGS);
+let dict = STRINGS['en-US'], lang = 'en-US';
+function setLocale(l) { lang = STRINGS[l] ? l : 'en-US'; dict = STRINGS[lang]; }
+bindStrings({
+  t: (k, v) => { const s = dict[k] ?? k; return v ? String(s).replace(/\{(\w+)\}/g, (m, n) => (v[n] != null ? String(v[n]) : m)) : s; },
+  tn: (g, id, fb = id) => dict[g]?.[id] ?? fb,
+  locale: () => lang,
+});
+
 const EN = STRINGS['en-US'];
 const vars = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
 
@@ -46,7 +61,7 @@ suite('i18n: every t() key used in the source exists', () => {
   walk(new URL('../src', import.meta.url).pathname);
   let seen = 0;
   for (const f of files) {
-    if (/gfx-panel|platform-strings/.test(f)) continue; // own tables, tested in gfx.test
+    if (/gfx-panel/.test(f)) continue; // own tables, tested in gfx.test
     const src = fs.readFileSync(f, 'utf8');
     for (const m of src.matchAll(/\b(?:t|translate)\(\s*'([A-Za-z0-9_]+)'(?!\s*\+)/g)) {
       seen++;
@@ -86,6 +101,7 @@ suite('i18n: content ids all have names in the tables', () => {
   for (let day = 20000; day < 20040; day++) {
     const lv = dailyLevel(day);
     ok(Object.values(EN.dailyIntros).includes(lv.intro), `daily intro ${day}`);
+    eq(EN.dailyIntros[DAILY_INTRO_KEYS[lv.intro]], lv.intro, `daily intro key ${day}`);
   }
 });
 
