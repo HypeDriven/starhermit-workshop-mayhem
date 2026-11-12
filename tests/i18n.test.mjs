@@ -12,7 +12,7 @@ import { ACHIEVEMENTS } from '../src/content/achievements.js';
 import { TOOLS, INVALID } from '../src/rules/engine.js';
 import { dailyLevel } from '../src/content/daily.js';
 
-const LOCALES = ['en-US', 'en-GB', 'es-419', 'es-ES', 'de-DE', 'fr-FR', 'fr-CA', 'pt-BR', 'it-IT'];
+const LOCALES = ['en-US', 'en-GB', 'es-419', 'es-ES', 'de-DE', 'fr-FR', 'fr-CA', 'pt-BR', 'it-IT', 'fr-BE', 'de-BE', 'en-SG', 'en-HK', 'en-BQ', 'es-CO', 'de-IT', 'fr-IT', 'es-CL', 'es-AR', 'es-EC', 'de-BR', 'ja-JP', 'nl-BE', 'zh-SG', 'ms-SG', 'zh-HK', 'yue-HK', 'nl-NL', 'fi-FI', 'sv-FI', 'et-EE', 'id-ID', 'vi-VN', 'ta-SG', 'ru-FI', 'ru-EE', 'da-DE', 'lb-BE', 'co-FR', 'eu-FR', 'ca-FR', 'oc-FR', 'sl-IT', 'fur-IT', 'ca-IT', 'oc-IT', 'ca-ES', 'eu-ES', 'gl-ES', 'su-ID', 'bew-ID', 'km-VN'];
 // The tables the engine loads, as nested groups, behind the helpers as the client binds them.
 const STRINGS = {};
 for (const [loc, flat] of Object.entries(JSON.parse(fs.readFileSync(new URL('../assets/strings.json', import.meta.url), 'utf8')))) {

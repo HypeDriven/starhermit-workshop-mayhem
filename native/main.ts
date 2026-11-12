@@ -1,3 +1,4 @@
+import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // Workshop Mayhem on the StarHermit engine: the entry module (starhermit.txt
 // engine.entry), played natively by the StarHermit client and in browsers by
 // the engine's web runtime. The rules (src/rules: the deterministic verlet
@@ -760,7 +761,7 @@ onUpdate((dt) => {
   app.captions = app.captions.filter((x) => x.until >= t);
   if (skipPending > 0 && --skipPending === 0) runSkip();
 });
-onRender((interp) => {
+onRender(__l10nRender((interp) => {
   const f = frame();
   const wasActive = inputOn();
   if (app.session && app.state === "active") session.interpAlpha = Math.max(0, Math.min(1, interp));
@@ -775,4 +776,8 @@ onRender((interp) => {
     announceQueue = [];
     try { ui.announce(text.slice(0, 500), { politeness: "polite" }); } catch { /* busy */ }
   }
-});
+}));
+
+// localization-runtime:menu
+import { installLanguageMenu as __installLanguageMenu } from "./l10n/menu.ts";
+__installLanguageMenu(false);
