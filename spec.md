@@ -1,7 +1,7 @@
 # Workshop Mayhem — running specification
 
-**Genre:** physics toy · **Players:** 1 (asynchronous score comparison) · **Runs on:** the StarHermit engine 1.38.0
-(host API 1.38, `engine.minor=38`), natively in the StarHermit client and in browsers through the engine's web
+**Genre:** physics toy · **Players:** 1 (asynchronous score comparison) · **Runs on:** the StarHermit engine 1.39.0
+(host API 1.39, `engine.minor=39`), natively in the StarHermit client and in browsers through the engine's web
 runtime (`index.html` is the loader `npm run package` writes).
 
 ## 1. The game
