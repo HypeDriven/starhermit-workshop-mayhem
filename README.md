@@ -1,5 +1,7 @@
 # Workshop Mayhem
 
+**[▶ Play Workshop Mayhem on StarHermit](https://dashboard.starhermit.com/play/fa4fff62-eb2f-4048-be14-3865c77eb57a)**
+
 A physics toy on the StarHermit engine: use whimsical tools — the Wallop Piston, Boing Pad, Gust Fan, Snatch
 Magnet and Thumper Weight — on a resilient plush training dummy to solve physics challenges across a playful
 inventor's workshop. Learn (5 lessons), Journey (40 stages in 6 chapters), Daily, Practice, Challenge (8 stages)
