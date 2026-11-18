@@ -122,7 +122,7 @@ function paint(id: string, L: Layout, x: number, y: number, w: number, h: number
 }
 
 // ------------------------------------------------------------------ the frame
-export function drawScreens(): void {
+function drawScreensImmediate(): void {
   const L = layoutNow();
   const f = frame();
   if (app.screen) fullScreen(L);
@@ -814,3 +814,10 @@ function profileScreen(w: number): void {
   backRow();
 }
 void num;
+
+export function drawScreens(): void {
+  if (app.screen !== "help") { drawScreensImmediate(); return; }
+  const actions = ["tool1","tool2","tool3","tool4","tool5","tool_prev","tool_next","cursor_up","cursor_down","cursor_left","cursor_right","fine","confirm","trigger","cancel","pause","undo","hint","restart","skip","camera","mute"];
+  const version = JSON.stringify([(app as any).settings ?? (app as any).options ?? {}, (platform as any).options ?? {}, actions.map((action) => bindings(action))]);
+  ui.retain!("help-screen", version, drawScreensImmediate);
+}
