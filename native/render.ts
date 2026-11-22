@@ -1043,6 +1043,7 @@ function applyReflections(): void {
 function applyPost(): void {
   const l = look!;
   renderer.antialias = l.antialias;
+  renderer.motionBlur = l.bloom !== null ? { intensity: 0.25, samples: 8, maxPixels: 16, targetFps: 60, camera: false } : null;
   const full = !!l.ao && l.ao.resolution >= 1; // the engine's "high"
   renderer.ao = l.ao && {
     blendIntensity: 0.75, radius: 0.55, distanceExponent: 2, thickness: 1.2, scale: 1.0, samples: l.ao.samples, resolution: l.ao.resolution,
