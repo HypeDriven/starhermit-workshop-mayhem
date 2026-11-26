@@ -1,7 +1,7 @@
 # Workshop Mayhem — running specification
 
-**Genre:** physics toy · **Players:** 1 (asynchronous score comparison) · **Runs on:** the StarHermit engine 1.47.0
-(host API 1.47, `engine.minor=47`), natively in the StarHermit client and in browsers through the engine's web
+**Genre:** physics toy · **Players:** 1 (asynchronous score comparison) · **Runs on:** the StarHermit engine 1.50.0
+(host API 1.50, `engine.minor=50`), natively in the StarHermit client and in browsers through the engine's web
 runtime (`index.html` is the loader `npm run package` writes).
 
 ## 1. The game
@@ -126,9 +126,9 @@ The string tables include complete regional variants for `fr-BE`, `de-BE`, `en-S
 
 <!-- regional-localization:end -->
 
-## Engine 1.47.0
+## Engine 1.50.0
 
-Browser play uses the WebGPU-only StarHermit 1.47.0 web runtime. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere. Packaging creates block-compressed runtime textures and compressed glTF copies, retaining original image fallbacks.
+Browser play uses the WebGPU-only StarHermit 1.50.0 web runtime. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere. Packaging creates block-compressed runtime textures and compressed glTF copies, retaining original image fallbacks.
 
 The help screen replays through retained native UI while its contents, options, layout and key bindings are unchanged.
 
