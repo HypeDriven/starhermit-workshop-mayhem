@@ -12,7 +12,7 @@
     "metadataSource": "starhermit.txt",
     "createdAt": "2026-08-17T16:29:51.046594+00:00",
     "coverArtSource": "manifest",
-    "coverArtUpdatedAt": "2026-11-23T17:02:59.902331+00:00",
+    "coverArtUpdatedAt": "2026-11-26T16:15:10.90283+00:00",
     "submittedByUserId": "2712e04e-461b-4d23-81ae-e40b429128a8",
     "submittedByUsername": "starhermit",
     "hosting": {
@@ -22,9 +22,9 @@
       "pinnedCommitSha": null,
       "deployedCommitSha": null,
       "deployError": null,
-      "deployedAt": "2026-11-23T17:02:59.886282+00:00",
+      "deployedAt": "2026-11-26T16:15:10.889681+00:00",
       "externalLaunchUrl": null,
-      "engineVersion": "1.47.0",
+      "engineVersion": "1.50.0",
       "deployWarning": null
     },
     "description": "Experiment with whimsical tools and a resilient training dummy to complete physics challenges and earn upgrades.",
@@ -36,19 +36,19 @@
     "links": [],
     "isDisabled": false
   },
-  "publishedAt": "2026-11-23T17:03:00.131Z",
-  "sourceCommit": "855294e117432cc653e607d481a446dbcb0eb61d",
-  "bytesReceived": 2910276,
-  "archiveSha256": "b08cadfe2818526aba932e9d59c77c215a84f9eaf7ab5aa2d22b0e2b98772c7b",
+  "publishedAt": "2026-11-26T16:15:10.045Z",
+  "sourceCommit": "42dc46f2db580bc1cbde257ec7b7856604b02dc9",
+  "bytesReceived": 2910301,
+  "archiveSha256": "1a41317439e33e038081f5a9b274da175aa6ec6ff2d68e2dda58b59489456590",
   "indexSha256": "12db919013a20663b8beb4d36421110b45b1e047b0e20b236e68852bb8a4df66",
   "result": {
     "clientPublished": true,
     "serverImageLoaded": false,
     "imageDigest": null,
-    "bytesReceived": 2910276,
+    "bytesReceived": 2910301,
     "mode": "replace",
     "filesRemoved": 0,
-    "engineVersion": "1.47.0",
+    "engineVersion": "1.50.0",
     "deployWarning": null
   },
   "liveVerification": {
