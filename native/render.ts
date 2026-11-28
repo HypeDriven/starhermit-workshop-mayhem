@@ -1201,17 +1201,20 @@ export function handleEvent(ev: GameEvent, dc: { x: number; y: number } | null):
 
 // --- picking (window pixels) ---
 /** A window point on the z = 0 gameplay plane. */
+const pickNdc = new Vector2();
+const pickPoint = new Vector3();
+const screenPoint = new Vector3();
 export function screenToWorld(px: number, py: number, w: number, h: number): { x: number; y: number } | null {
   if (w <= 0 || h <= 0) return null;
-  raycaster.setFromCamera(new Vector2((px / w) * 2 - 1, -((py / h) * 2 - 1)), camera);
-  const pt = new Vector3();
-  const hit = raycaster.ray.intersectPlane(pickPlane, pt);
-  return hit ? { x: pt.x, y: pt.y } : null;
+  pickNdc.set((px / w) * 2 - 1, -((py / h) * 2 - 1));
+  raycaster.setFromCamera(pickNdc, camera);
+  const hit = raycaster.ray.intersectPlane(pickPlane, pickPoint);
+  return hit ? { x: pickPoint.x, y: pickPoint.y } : null;
 }
 /** World → window pixels. */
 export function worldToScreen(x: number, y: number, z: number, w: number, h: number): { x: number; y: number; behind: boolean } {
-  const v = new Vector3(x, y, z).project(camera);
-  return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h, behind: v.z > 1 };
+  screenPoint.set(x, y, z).project(camera);
+  return { x: (screenPoint.x * 0.5 + 0.5) * w, y: (-screenPoint.y * 0.5 + 0.5) * h, behind: screenPoint.z > 1 };
 }
 export function mountViews(): MountView[] { return levelView?.mountViews ?? []; }
 export function nearestMount(pt: { x: number; y: number }, maxDist = 0.55): MountView | null {
